@@ -6,7 +6,7 @@ date: June, 2018
 
 # Agenda
 
-* Data structures and lazy sequences,
+* Lazy Sequences
 * Polymorphism
 * Macros
 * Specs

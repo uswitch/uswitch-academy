@@ -1,3 +1,0 @@
-# BAZZ
-* test
-* toast
