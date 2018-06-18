@@ -80,16 +80,16 @@ toc_progress.create=function()
   toc_progress_footer_main.appendChild(toc_progress_footer_main_inside);
   var toc_progress_footer_main_inside_ul=document.createElement('ul');
   toc_progress_footer_main_inside.appendChild(toc_progress_footer_main_inside_ul);
-  // var toc_progress_footer_secondary=document.createElement('div');
-  // toc_progress_footer_secondary.setAttribute('id','toc-progress-footer-secondary');
-  // toc_progress_footer.appendChild(toc_progress_footer_secondary);
-  // var toc_progress_footer_secondary_inside=document.createElement('div');
-  // toc_progress_footer_secondary_inside.setAttribute('id','toc-progress-footer-secondary-inside');
-  // toc_progress_footer_secondary.appendChild(toc_progress_footer_secondary_inside);
-  // var toc_progress_footer_secondary_inside_ul=document.createElement('ul');
-  // toc_progress_footer_secondary_inside.appendChild(toc_progress_footer_secondary_inside_ul);
-  // var toc_progress_footer_secondary_inside_ul_ul=document.createElement('ul');
-  // toc_progress_footer_secondary_inside_ul.appendChild(toc_progress_footer_secondary_inside_ul_ul);
+  var toc_progress_footer_secondary=document.createElement('div');
+  toc_progress_footer_secondary.setAttribute('id','toc-progress-footer-secondary');
+  toc_progress_footer.appendChild(toc_progress_footer_secondary);
+  var toc_progress_footer_secondary_inside=document.createElement('div');
+  toc_progress_footer_secondary_inside.setAttribute('id','toc-progress-footer-secondary-inside');
+  toc_progress_footer_secondary.appendChild(toc_progress_footer_secondary_inside);
+  var toc_progress_footer_secondary_inside_ul=document.createElement('ul');
+  toc_progress_footer_secondary_inside.appendChild(toc_progress_footer_secondary_inside_ul);
+  var toc_progress_footer_secondary_inside_ul_ul=document.createElement('ul');
+  toc_progress_footer_secondary_inside_ul.appendChild(toc_progress_footer_secondary_inside_ul_ul);
   var div_class_reveal=document.querySelectorAll('.reveal')[0];
   div_class_reveal.appendChild(toc_progress_footer);
 
