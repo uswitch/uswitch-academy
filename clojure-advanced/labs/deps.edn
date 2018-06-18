@@ -1,11 +1,12 @@
 {:paths ["resources" "src"]
- :deps {org.clojure/clojure {:mvn/version "RELEASE"}}
+ :deps {org.clojure/clojure {:mvn/version "1.9.0"}}
+ :test-refresh {:changes-only true
+                :watch-dirs ["src" "test"]
+                :refresh-dirs ["src" "test"]}
  :aliases
- {:test {:extra-paths ["test"]
-         :extra-deps {org.clojure/test.check {:mvn/version "RELEASE"}}}
-  :runner
-  {:extra-deps {com.cognitect/test-runner
-                {:git/url "https://github.com/cognitect-labs/test-runner"
-                 :sha "76568540e7f40268ad2b646110f237a60295fa3c"}}
-   :main-opts ["-m" "cognitect.test-runner"
-               "-d" "test"]}}}
+ {:test
+  {:extra-paths ["test"]
+   :extra-deps {com.cognitect/test-runner
+                {:git/url "https://github.com/reborg/test-runner"
+                 :sha "6edac4045c0c5d5ceb1c7d44932fc39033dee2e8"}}
+   :main-opts ["-m" "cognitect.test-runner"]}}}

@@ -1,23 +1,21 @@
 (ns uswitch.labs01
   (:import [java.io FileInputStream InputStream]))
 
-(defn f1 [& args]
-  (println "Hello, World!"))
+(defonce counter (atom 0))
 
+(defn fake-s3-list-objects [{:keys [marker]}]
+  (swap! counter inc)
+  {:object-summaries (range marker (+ 1000 marker))
+   :truncated? true
+   :next-marker (+ 1000 marker)})
 
-
-(defn byte-seq [^InputStream is size]
-  (let [ib (byte-array size)]
-    ((fn step []
-       (lazy-seq
-         (let [n (.read is ib)]
-           (when (not= -1 n)
-             (let [cb (chunk-buffer size)]
-               (dotimes [i size] (chunk-append cb (aget ib i)))
-               (chunk-cons (chunk cb) (step))))))))))
-
-;; Example with a text file and block size 4096.
-(with-open [is (FileInputStream. "/usr/share/dict/words")]
-  (let [bs (byte-seq is 4096)]
-    (String. (byte-array (take 20 bs)))))
-;; "A\na\naa\naal\naalii\naam"
+(defn list-objects [req]
+  ;; fetch objects
+  ;; create a collection out of the :object-summaries plus...
+  ;; ... the rest of objects (when available) that you obtain
+  ;; by calling again fetch-objects recursively. To know if there are more
+  ;; check the (:truncated? res) key in the response.
+  ;; Next batch can be called by setting the marker in the next
+  ;; request: (assoc req :marker (:next-marker res))
+  (let [res (fake-s3-list-objects req)]
+    ))

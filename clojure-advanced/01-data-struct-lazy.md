@@ -118,22 +118,37 @@ Clojure has that baked directly into Sequences
 ;; .0
 ```
 
-# S3 Examples
+# Chunked-Seq example
+
+Read bytes from disk by block size (e.g. 4096):
 
 ```clojure
-(defn fake-s3-list-objects [{:keys [marker]}]
-  (println "calling s3")
-  {:object-summaries (range marker (+ 1000 marker))
-   :truncated? true :next-marker (+ 1000 marker)})
+(import '[java.io FileInputStream InputStream])
 
-(defn list-objects [req]
-  (let [res (fake-s3-list-objects req)]
-    (concat
-      (:object-summaries res)
-      (when (:truncated? res)
-        (lazy-seq
-          (list-objects (assoc req :marker (:next-marker res))))))))
-
-(last (take 10000 (list-objects {:marker 0})))
+(defn byte-seq [^InputStream is size]
+  (let [ib (byte-array size)]
+    ((fn step []
+       (lazy-seq
+         (let [n (.read is ib)]
+           (when (not= -1 n)
+             (let [cb (chunk-buffer size)]
+               (dotimes [i size] (chunk-append cb (aget ib i)))
+               (chunk-cons (chunk cb) (step))))))))))
 ```
-(prints "calling s3" x10 times, then 9999)
+
+# byte-seq how to use
+
+```clojure
+(with-open [fis (FileInputStream. "/usr/share/dict/words")]
+  (let [bs (byte-seq fis 4096)]
+    (String. (byte-array (take 20 bs)))))
+;; "A\na\naa\naal\naalii\naam"
+```
+
+# Lab 01: lazy S3
+
+* Create a lazy-seq out of S3 objects.
+* Objects are fetched in batch of 1000 each.
+* Goal: hide batching and produce a lazy sequence.
+* Suggestions: `concat` them into next recursive request.
+* Run `clj -Atest uswitch.labs01-test` from `./labs` and make tests green.
