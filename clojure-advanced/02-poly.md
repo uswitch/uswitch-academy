@@ -10,10 +10,10 @@
 
 # Available options
 
-* Map lookup (straightforward, centralised)
-* Namespace lookup (allow same names)
+* Map lookup (simple and centralised)
+* Namespace lookup (same function names)
 * Multimethods (flexible)
-* Protocols (fast)
+* Protocols (fast, multiple fns)
 
 # Map lookup
 
@@ -149,4 +149,8 @@
 
 # Lab 02
 
-* Extend our system to work with a new vendor
+* Work with vendors multimethods
+* Extend to new vendor, add new multimethod
+* Refactor into protocols
+* Uncomment tests in lab02-test
+* Run `clj -Atest` from `./labs` folder and make tests green.

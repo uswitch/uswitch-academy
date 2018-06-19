@@ -1,5 +1,4 @@
-(ns uswitch.sols.lab01s
-  (:import [java.io FileInputStream InputStream]))
+(ns uswitch.sols.labs01s)
 
 (defonce counter (atom 0))
 

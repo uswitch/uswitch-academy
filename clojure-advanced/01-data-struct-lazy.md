@@ -151,4 +151,5 @@ Read bytes from disk by block size (e.g. 4096):
 * Objects are fetched in batch of 1000 each.
 * Goal: hide batching and produce a lazy sequence.
 * Suggestions: `concat` them into next recursive request.
-* Run `clj -Atest uswitch.labs01-test` from `./labs` and make tests green.
+* Uncomment the fist test in lab01-test
+* Run `clj -Atest` from `./labs` folder and make tests green.

@@ -5,7 +5,7 @@
 (deftest s3-list-objects
   (let [_ (reset! l1/counter 0)
         s3-objs (->> {:marker 0} l1/list-objects)]
-    (testing "it returns 1000 objects"
+    #_(testing "it returns 1000 objects"
       (is (= 1000 (count (take 1000 s3-objs)))))
     #_(testing "it calls s3 once"
       (is (= 1 @l1/counter)))
