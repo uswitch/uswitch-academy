@@ -91,3 +91,13 @@ Mostly personal taste but:
 ```
 
 * Then use it to specify the argument.
+
+# Lab 04
+
+* I wrote a "fizz-buzz" and I tested it!
+* I'm 100% sure it works.
+* Can you write a spec for it and prove me wrong?
+* Be sure to not over specify it
+* Your spec should not contain the implementation
+* Search for general facts.
+* For example: for any given "n" how many distinct strings?
