@@ -162,5 +162,17 @@ Syntax quote (the back tick) allows for:
 
 # Lab 03
 
-* A parallel `let`
-* Easier than it sounds
+* We want to create a parallel let macro.
+* The general idea is to transform this:
+
+```clojure
+(let [a (+ 1 1) b (* 2 2)]
+  (+ a b))
+```
+Into:
+
+```clojure
+(let [a (future (+ 1 1)) b (future (* 2 2))]
+  (let [a (deref a) b (deref b)]
+    (+ a b)))
+```
