@@ -1,4 +1,4 @@
-# 2. Polymorphism
+# ### 2. Polymorphism
 
 # Polymorphism in Clojure
 
@@ -154,3 +154,8 @@
 * Refactor into protocols
 * Uncomment tests in lab02-test
 * Run `clj -Atest` from `./labs` folder and make tests green.
+
+# Resources
+
+* [Multimethods announcement](https://groups.google.com/forum/#!msg/clojure/nMmSbeG9sSg/BYleWoRL4WQJ) on Clojure ML (28/7/2008)
+* [Protocol alpha release](https://groups.google.com/d/msg/clojure/pZFl8gj1lMs/SYIqt5f8x9cJ) and [feedback release](https://groups.google.com/d/msg/clojure/_Ecf6MfxfB8/SFXrsTDGQEgJ) on the Clojure ML (12/11/2009)
