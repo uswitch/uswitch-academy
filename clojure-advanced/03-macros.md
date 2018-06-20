@@ -176,3 +176,13 @@ Into:
   (let [a (deref a) b (deref b)]
     (+ a b)))
 ```
+
+# USeful tips for the lab
+
+* Use the example as a starting point for the macro.
+* Work you way out removing specific keys/expressions.
+* The macro should output the code ready for evaluation.
+* Treat the bindings as an actual vector you can manipulate
+* `(take-nth 2 bindings)` gives you the names of the locals
+* `(take-nth 2 (rest bindings))` gives you the expressions
+* `(list 'future '(+ 1 1))` creates `(future (+ 1 1))`
