@@ -42,11 +42,13 @@
 
 
 (s/fdef fizz-buzz-seq
-  :args (s/cat :n pos?)
-  :ret (s/coll-of (s/or :n int? :s string?) :min-count 1)
-  :fn (fn [{:keys [args ret]}]
-        (and (= #{"fizz" "buzz" "fizzbuzz"}
-                (set (filter string? ret))))))
+        :args (s/cat :n int?)
+        :ret seqable?
+        :fn (fn [{:keys [args ret]}]
+              (if (> (:n args) 15)
+                (= #{"fizz" "buzz" "fizzbuzz"}
+                   (set (filter string? ret)))
+                (= (count ret) (:n args)))))
 
 (defn fizz-buzz-seq
   "We have here a fairly common fizz-buzz implementaiton.

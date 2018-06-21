@@ -5,3 +5,7 @@
   ;   (let ~[and the content of the second one]
   ;     ~@body))
   )
+
+(defmacro x []
+  `(defmacro x []
+     (println "writing")))

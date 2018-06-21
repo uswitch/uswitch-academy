@@ -3,7 +3,7 @@
             [clojure.spec.test.alpha :as stest]))
 
 (s/fdef fizz-buzz-seq
-  )
+        )
 
 (defn fizz-buzz-seq
   "We have here a fairly common fizz-buzz implementaiton.

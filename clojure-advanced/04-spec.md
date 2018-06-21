@@ -95,7 +95,7 @@ Mostly personal taste but:
 # Lab 04
 
 * I wrote a "fizz-buzz" and I tested it!
-* I'm 100% sure it works.
+* I'm 100% sure it works, even with negatives!
 * Can you write a spec for it and prove me wrong?
 * Be sure to not over specify it
 * Your spec should not contain the implementation

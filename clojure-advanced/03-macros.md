@@ -1,11 +1,18 @@
 # ### 3. Macros
 
+# What are macros?
+
+* Special functions that evaluate before other code evaluates
+* They see normal code as data structures
+* Their output is then subject to normal evaluation
+* Macro effectively "expands" in place of their call site
+
 # Why macros?
 
-* Expanding the language possibilities
-* Loads of examples in the stdlib: `->>`, `for`, `definline`, `lazy-seq`, etc etc.
-* Avoid repetition, for example generating lots of similar functions
-* Setup/teardown behaviour (e.g. `with-open`)
+* In general, they expand language possibilities
+* Loads in the stdlib: `->>`, `for`, `with-redefs`, `with-open`
+* Generate lots of similar functions (for example to call AWS services)
+* Setup/teardown behaviour (e.g. `with-open`, `with-redefs`)
 * DSLs and small compilers (e.g. `for` has a "dsl" and related compiler)
 
 # Home-made macro
