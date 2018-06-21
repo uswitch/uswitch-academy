@@ -10,5 +10,5 @@ date: June, 2018
 * Polymorphism
 * Macros
 * Specs
-* Concurrency, atom, future, delay, pmap
 * Performance tuning, java interop
+* Concurrency, atom, future, delay, pmap
