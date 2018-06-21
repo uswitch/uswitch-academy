@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+
+<title>Clojure Advanced Workshop</title>
+
+<meta name="description" content="Clojure Advanced Workshop">
+
+  <meta name="author" content="uSwtich" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<link rel="stylesheet" href="reveal.js/plugin/toc-progress/toc-progress.css">
+<link rel="stylesheet" href="reveal.js/css/reveal.css">
+  <link rel="stylesheet" href="reveal.js/css/theme/beige.css" id="theme">
+
+
+<!-- For syntax highlighting -->
+  <link rel="stylesheet" href="reveal.js/lib/css/zenburn.css">
+
+
+<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+<script>
+  document.write( '<link rel="stylesheet" href="reveal.js/css/print/' +
+    ( window.location.search.match( /print-pdf/gi ) ? 'pdf' : 'paper' ) +
+    '.css" type="text/css" media="print">' );
+</script>
+
+<!--[if lt IE 9]>
+<script src="lib/js/html5shiv.js"></script>
+<![endif]-->
+</head>
+
+<body>
+
+<div class="reveal">
+
+<!-- Any section element inside of this container is displayed as a slide -->
+<div class="slides">
+
+<section>
+<h1>Clojure Advanced Workshop</h1>
+<h3>uSwtich</h3>
+<p>
+<h4>June, 2018</h4>
+</p>
+</section>
+
+
+<section id="agenda" class="level1">
+<h1>Agenda</h1>
+<ul>
+<li>Lazy Sequences</li>
+<li>Polymorphism</li>
+<li>Macros</li>
+<li>Specs</li>
+<li>Performance tuning, java interop</li>
+<li>Concurrency, atom, future, delay, pmap</li>
+</ul>
+</section>
+<section id="lazy-sequences" class="level1">
+<h1>### 1. Lazy Sequences</h1>
+</section>
+<section id="laziness" class="level1">
+<h1>Laziness</h1>
+<pre class="clojure"><code>
+ (println &quot;hi&quot;)  ;; evaluates immediately
+ ;; hi
+
+#(println &quot;hi&quot;)  ;; needs invocation
+;; #object[user$eval1843$fn__1844 0x9036860]
+</code></pre>
+<ul>
+<li>Deferred code evaluation</li>
+<li>Code evaluates when requested</li>
+</ul>
+</section>
+<section id="why-do-i-care" class="level1">
+<h1>Why do I care?</h1>
+<p>Performances and expressiveness:</p>
+<ul>
+<li>Consume data beyond memory capacity</li>
+<li>Avoid unnecessary evaluations</li>
+<li>Leverage caching</li>
+<li>Work with infinite sequences</li>
+<li>Detach producers/consumers</li>
+</ul>
+</section>
+<section id="how" class="level1">
+<h1>How?</h1>
+<ul>
+<li>Everything needs wrapping in <code>#()</code></li>
+<li>Without language support it would look like:</li>
+</ul>
+<pre class="clojure"><code>
+(defn lazy-list [coll]
+  (map
+    (fn [x]
+      (fn [] (println &quot;eval&quot; x) x)) ;; need wrapping
+    coll))
+
+(def l (lazy-list [1 2 3]))
+
+((first l)) ;; need invocation
+;; eval 1</code></pre>
+<p>Clojure has that baked directly into Sequences</p>
+</section>
+<section id="sequences" class="level1">
+<h1>Sequences</h1>
+<ul>
+<li>Abstract Data Type (or ADT)</li>
+<li>Iterated sequentially (can't access Nth before Nth-1)</li>
+<li>Stateless cursor: no shared callers, only forward</li>
+<li>Commonly (not necessarily) lazy</li>
+<li>Persistent and immutable</li>
+</ul>
+</section>
+<section id="generators-options" class="level1">
+<h1>Generators options</h1>
+<figure>
+<img src="images/01-sequence-generators.png" />
+</figure>
+</section>
+<section id="some-examples" class="level1">
+<h1>Some Examples</h1>
+<pre class="clojure"><code>;; No hanging
+(def a (map inc (range 100000000000)))
+
+;; Self referential
+(def fibs
+  (cons 0
+    (cons 1
+      (lazy-seq (map +&#39; fibs (rest fibs))))))
+
+;; Moving window memory load
+(require &#39;[clojure.java.io :refer [reader]])
+(with-open [r (reader &quot;/huge/petabytes/file&quot;)]
+  (count (line-seq r)))</code></pre>
+</section>
+<section id="traps-and-gotchas" class="level1">
+<h1>Traps and gotchas</h1>
+<ul>
+<li>Holding the head</li>
+</ul>
+<pre class="clojure"><code>(let [res (map inc (range 1e7))] (first res) (last res))
+;; 10000000
+(let [res (map inc (range 1e7))] (last res) (first res))
+;; Out of mem</code></pre>
+<ul>
+<li>Chunkiness</li>
+</ul>
+<pre class="clojure"><code>(first (map #(do (print &quot;.&quot;) %) (range 1000)))
+;; ................................0</code></pre>
+</section>
+<section id="taking-control" class="level1">
+<h1>Taking control</h1>
+<ul>
+<li>Create your own lazy sequence</li>
+<li>Optionally define chunkiness</li>
+<li>Your friends: <code>lazy-seq</code>, <code>cons</code>, <code>chunk-cons</code></li>
+</ul>
+</section>
+<section id="recursive-pattern" class="level1">
+<h1>Recursive Pattern</h1>
+<figure>
+<img src="images/01-lazy-seq-pattern-diagram.png" />
+</figure>
+</section>
+<section id="unchunk-example" class="level1">
+<h1>Unchunk Example</h1>
+<ul>
+<li>A lazy sequence generator using the pattern</li>
+<li>Apparently doing nothing, but it removes chunking:</li>
+</ul>
+<pre class="clojure"><code>(defn unchunk [xs]
+  (lazy-seq
+    (when-first [x xs]
+      (cons x (unchunk (rest xs))))))
+
+(first (map #(do (print &quot;.&quot;) %) (unchunk (range 1000))))
+;; .0</code></pre>
+</section>
+<section id="chunked-seq-example" class="level1">
+<h1>Chunked-Seq example</h1>
+<p>Read bytes from disk by block size (e.g. 4096):</p>
+<pre class="clojure"><code>(import &#39;[java.io FileInputStream InputStream])
+
+(defn byte-seq [^InputStream is size]
+  (let [ib (byte-array size)]
+    ((fn step []
+       (lazy-seq
+         (let [n (.read is ib)]
+           (when (not= -1 n)
+             (let [cb (chunk-buffer size)]
+               (dotimes [i size] (chunk-append cb (aget ib i)))
+               (chunk-cons (chunk cb) (step))))))))))</code></pre>
+</section>
+<section id="byte-seq-how-to-use" class="level1">
+<h1>byte-seq how to use</h1>
+<pre class="clojure"><code>(with-open [fis (FileInputStream. &quot;/usr/share/dict/words&quot;)]
+  (let [bs (byte-seq fis 4096)]
+    (String. (byte-array (take 20 bs)))))
+;; &quot;A\na\naa\naal\naalii\naam&quot;</code></pre>
+</section>
+<section id="lab-01-lazy-s3" class="level1">
+<h1>Lab 01: lazy S3</h1>
+<ul>
+<li>Create a lazy-seq out of S3 objects.</li>
+<li>Objects are fetched in batch of 1000 each.</li>
+<li>Goal: hide batching and produce a lazy sequence.</li>
+<li>Suggestions: <code>concat</code> them into next recursive request.</li>
+<li>Uncomment the fist test in lab01-test</li>
+<li>Run <code>clj -Atest</code> from <code>./labs</code> folder and make tests green.</li>
+</ul>
+</section>
+<section id="polymorphism" class="level1">
+<h1>### 2. Polymorphism</h1>
+</section>
+<section id="polymorphism-in-clojure" class="level1">
+<h1>Polymorphism in Clojure</h1>
+<ul>
+<li>Emphasis on functional dispatch</li>
+<li>Emphasis on flexibility</li>
+<li>Less interested in inheritance</li>
+<li>Less interested in subtyping</li>
+<li>Less interested in type based dispatch</li>
+</ul>
+</section>
+<section id="available-options" class="level1">
+<h1>Available options</h1>
+<ul>
+<li>Map lookup (simple and centralised)</li>
+<li>Namespace lookup (same function names)</li>
+<li>Multimethods (flexible)</li>
+<li>Protocols (fast, multiple fns)</li>
+</ul>
+</section>
+<section id="map-lookup" class="level1">
+<h1>Map lookup</h1>
+<pre class="clojure"><code>(defn process-bg   [instr] (println &quot;bg&quot;))
+(defn process-edf  [instr] (println &quot;edf&quot;))
+(defn process-bulb [instr] (println &quot;bulb&quot;))
+
+(def vendors
+  {:bg    process-bg
+   :edf   process-edf
+   :bulb  process-bulb})
+
+(defn handle-request [instr]
+  ((vendors (keyword (:vendor instr))) instr))
+
+(handle-request {:date &quot;today&quot; :vendor &quot;edf&quot;})
+;; edf</code></pre>
+</section>
+<section id="namespace-lookup" class="level1">
+<h1>Namespace lookup</h1>
+<pre class="clojure"><code>(in-ns &#39;bg)
+(clojure.core/defn process [instr] (clojure.core/println &quot;bg&quot;))
+(in-ns &#39;edf)
+(clojure.core/defn process [instr] (clojure.core/println &quot;edf&quot;))
+(in-ns &#39;bulb)
+(clojure.core/defn process [instr] (clojure.core/println &quot;bulb&quot;))
+
+(in-ns &#39;user)
+
+(defn handle-request [instr]
+  (when-let [f (find-var (symbol (str (:vendor instr) &quot;/process&quot;)))]
+    (@f instr)))
+
+(handle-request {:date &quot;today&quot; :vendor &quot;edf&quot;})
+;; edf</code></pre>
+</section>
+<section id="multimethods" class="level1">
+<h1>Multimethods</h1>
+<pre class="clojure"><code>(defmulti process (comp keyword :vendor))
+(defmethod process :bg   [instr] (println &quot;bg&quot;))
+(defmethod process :edf  [instr] (println &quot;edf&quot;))
+(defmethod process :bulb [instr] (println &quot;bulb&quot;))
+
+(process {:date &quot;today&quot; :vendor &quot;edf&quot;})
+;; edf</code></pre>
+</section>
+<section id="hierarchical-multimethods" class="level1">
+<h1>Hierarchical multimethods</h1>
+<pre class="clojure"><code>(defmulti process (comp keyword #(str &quot;user/&quot; %) :vendor))
+(defmethod process ::junifer [instr] (println &quot;junifer&quot;))
+(defmethod process ::bulb    [instr] (println &quot;bulb&quot;))
+
+(derive ::edf ::junifer)
+(derive ::bg ::junifer)
+
+(process {:date &quot;today&quot; :vendor &quot;edf&quot;})
+;; junifer</code></pre>
+</section>
+<section id="isa-relationships" class="level1">
+<h1>isa? relationships</h1>
+<ul>
+<li><code>(isa? ::bg ::junifer)</code> =&gt; <code>true</code></li>
+<li><code>(parents ::bg)</code> =&gt; <code>#{:user/junifer}</code></li>
+<li><code>(descendants ::junifer)</code> =&gt; <code>#{:user/edf :user/bg}</code></li>
+<li>Store in global <code>@#'clojure.core/global-hierarchy</code></li>
+<li>You can pass your own as a param.</li>
+</ul>
+</section>
+<section id="protocols" class="level1">
+<h1>Protocols</h1>
+<pre class="clojure"><code>(defprotocol Vendor
+  (process [vendor instr])
+  (dispatch [vendor instr]))
+
+(defrecord Edf [live? endpoint]
+  Vendor
+  (process [vendor instr] (when live? (println &quot;process edf&quot;)))
+  (dispatch [vendor instr] (println &quot;sending to&quot; endpoint)))
+
+(defn lookup-vendor [instr]
+  (let [initf (find-var (symbol (str &quot;user/-&gt;&quot; (:vendor instr))))]
+    (initf true &quot;http&quot;)))
+
+(let [instr {:date &quot;today&quot; :vendor &quot;Edf&quot;}]
+  (process (lookup-vendor instr) instr)) ;; prints &quot;process edf&quot;</code></pre>
+</section>
+<section id="adding-behaviour" class="level1">
+<h1>Adding behaviour</h1>
+<pre class="clojure"><code>(defrecord Bg [live? endpoint]
+  Vendor
+  (process [vendor instr] (when live? (println &quot;process bg&quot;)))
+  (dispatch [vendor instr] (println &quot;sending to&quot; endpoint)))
+
+(let [instr {:date &quot;today&quot; :vendor &quot;Bg&quot;}]
+  (dispatch (lookup-vendor instr) instr))
+;; &quot;sending to http&quot;</code></pre>
+</section>
+<section id="sharing-behaviour" class="level1">
+<h1>Sharing behaviour</h1>
+<pre class="clojure"><code>(defrecord Bg  [live? endpoint])
+
+(def vendor-common
+  {:dispatch (fn [vendor instr]
+    (println &quot;sending via&quot; (:endpoint vendor)))})
+
+(extend Bg
+  Vendor
+  (assoc vendor-common
+    :process (fn [vendor instr]
+      (when (:live? vendor) (println &quot;process bg&quot;)))))
+
+(let [instr {:date &quot;today&quot; :vendor &quot;Bg&quot;}]
+  (dispatch (lookup-vendor instr) instr))
+;; &quot;sending via http&quot;</code></pre>
+</section>
+<section id="gotchas" class="level1">
+<h1>Gotchas</h1>
+<ul>
+<li>Multimethods and Protocols need explicit &quot;require&quot;</li>
+<li>Using them from other namespaces can be tricky</li>
+<li>Protocol functions can clash with local functions</li>
+</ul>
+</section>
+<section id="lab-02" class="level1">
+<h1>Lab 02</h1>
+<ul>
+<li>Work with vendors multimethods</li>
+<li>Extend to new vendor, add new multimethod</li>
+<li>Refactor into protocols</li>
+<li>Uncomment tests in lab02-test</li>
+<li>Run <code>clj -Atest</code> from <code>./labs</code> folder and make tests green.</li>
+</ul>
+</section>
+<section id="resources" class="level1">
+<h1>Resources</h1>
+<ul>
+<li><a href="https://groups.google.com/forum/#!msg/clojure/nMmSbeG9sSg/BYleWoRL4WQJ">Multimethods announcement</a> on Clojure ML (28/7/2008)</li>
+<li><a href="https://groups.google.com/d/msg/clojure/pZFl8gj1lMs/SYIqt5f8x9cJ">Protocol alpha release</a> and <a href="https://groups.google.com/d/msg/clojure/_Ecf6MfxfB8/SFXrsTDGQEgJ">feedback release</a> on the Clojure ML (12/11/2009)</li>
+</ul>
+</section>
+<section id="macros" class="level1">
+<h1>### 3. Macros</h1>
+</section>
+<section id="why-macros" class="level1">
+<h1>Why macros?</h1>
+<ul>
+<li>Expanding the language possibilities</li>
+<li>Loads of examples in the stdlib: <code>-&gt;&gt;</code>, <code>for</code>, <code>definline</code>, <code>lazy-seq</code>, etc etc.</li>
+<li>Avoid repetition, for example generating lots of similar functions</li>
+<li>Setup/teardown behaviour (e.g. <code>with-open</code>)</li>
+<li>DSLs and small compilers (e.g. <code>for</code> has a &quot;dsl&quot; and related compiler)</li>
+</ul>
+</section>
+<section id="home-made-macro" class="level1">
+<h1>Home-made macro</h1>
+<pre class="clojure"><code>(defn like-a-macro [[op &amp; args :as form]]
+(println (type op))
+  (if (fn? op) (apply op args) form))
+
+(like-a-macro (list + 1 1)) ;; 2
+(like-a-macro (list :a :b :c)) ;; (:a :b :c)</code></pre>
+<ul>
+<li>Can't really write programs as lists... but what if</li>
+<li>Special fn taking unevaluated forms as arguments</li>
+<li>Compiler uses fn output instead of actual form</li>
+<li>This is what macros are for.</li>
+<li>Access to full power manipulation of sources!</li>
+</ul>
+</section>
+<section id="a-real-macro" class="level1">
+<h1>A real macro</h1>
+<pre class="clojure"><code>(defmacro is-a-macro [[op &amp; args :as form]]
+  (if-let [f (find-var (symbol (str &quot;clojure.core/&quot; op)))]
+    (cons f args)
+    (cons &#39;list form)))
+
+(is-a-macro (+ 1 1)) ;; 2
+(is-a-macro (:a :b :c)) ;; (:a :b :c)</code></pre>
+<ul>
+<li>We had to &quot;qualify&quot; and lookup the symbol</li>
+<li>The input is now a list of unevaluated symbols</li>
+<li>It needs to return a new form (list)</li>
+<li>The compiler take that &quot;in place&quot; of original call.</li>
+<li><code>defmacro</code> is itself a macro built on top of <code>defn</code></li>
+</ul>
+</section>
+<section id="help-please" class="level1">
+<h1>Help please</h1>
+<p>Syntax quote (the back tick) allows for:</p>
+<ul>
+<li>Auto-qualification of symbols</li>
+<li>Unquote <code>~</code> evaluated context</li>
+<li>Unquote-splicing unquote all items in a collection</li>
+<li>Auto-gensym prevents accidental override of symbols</li>
+<li><code>&amp;form</code> contains the surrounding form</li>
+<li><code>&amp;env</code> contains the local bindings</li>
+</ul>
+</section>
+<section id="syntax-quote" class="level1">
+<h1>Syntax quote</h1>
+<ul>
+<li>Like <code>quote</code> prevents evaluation</li>
+<li>Plus all mentioned goodies</li>
+</ul>
+<pre class="clojure"><code>`(1 2 3)
+;; (1 2 3)
+
+(= `(1 2 3) &#39;(1 2 3))
+;; true</code></pre>
+</section>
+<section id="auto-qualification" class="level1">
+<h1>Auto-qualification</h1>
+<pre class="clojure"><code>(require &#39;[clojure.string :as s :refer [lower-case])
+
+`s/upper-case
+;; clojure.string/upper-case
+
+`lower-case
+;; clojure.string/lower-case
+
+`foo
+;; user/foo</code></pre>
+</section>
+<section id="unquote-and-splicing" class="level1">
+<h1>Unquote and splicing</h1>
+<pre class="clojure"><code>`[1 2 (+ 1 2)  ~(+ 1 2)]
+;; [1 2 (clojure.core/+ 1 2) 3]
+
+`[1 2 ~[3 4] ~@[3 (+ 1 2)]]
+;; [1 2 [3 4] 3 3]</code></pre>
+<ul>
+<li>Used to mix between the macro expansion and evaluation context</li>
+<li>Splicing works similarly to <code>apply</code> to spread arguments</li>
+</ul>
+</section>
+<section id="accidental-capturing" class="level1">
+<h1>Accidental capturing</h1>
+<pre class="clojure"><code>(defmacro ** [a b]
+  `(let [~&#39;y (* ~a ~a)]
+    (* ~&#39;y ~b)))
+
+(macroexpand &#39;(** a b))
+;; (let [y (* a a)] (* y b))
+
+(let [x 2 y 5] (** x y))
+;; 16</code></pre>
+<ul>
+<li><code>~'</code> (tilde single-quote) expands into the actual symbol.</li>
+<li>Equivalent to <code>~(quote y)</code></li>
+<li>Which is the &quot;evaluation of quote y&quot;</li>
+<li>Or y itself.</li>
+</ul>
+</section>
+<section id="auto-gensym" class="level1">
+<h1>Auto-gensym</h1>
+<pre class="clojure"><code>(defmacro ** [a b]
+  `(let [y# (* ~a ~a)]
+    (* y# ~b)))
+
+(macroexpand &#39;(** a b))
+;; (let [y__2270 (* a a)] (* y__2270 b))
+
+(let [x 2 y 5] (** x y))
+;; 20</code></pre>
+</section>
+<section id="form" class="level1">
+<h1>&amp;form</h1>
+<pre class="clojure"><code>(defmacro just-print-me [&amp; args] (println &amp;form)
+
+(just-print-me foo :bar 123)
+;; (just-print-me foo :bar 123)</code></pre>
+<ul>
+<li><code>&amp;form</code> captures the actual macro call as data</li>
+<li>Useful to inspect metadata (like type hints)</li>
+</ul>
+</section>
+<section id="env" class="level1">
+<h1>&amp;env</h1>
+<pre class="clojure"><code>(defmacro with-negatives [&amp; body]
+  (let [pos (vec (keys &amp;env))
+        neg (mapv #(symbol (str % &quot;&#39;&quot;)) pos)
+        values (mapv #(.eval (.init %)) (vals &amp;env))]
+    `(let [~pos ~values
+           ~neg (mapv - ~values)]
+       ~@body)))
+
+(let [x 1 y 2]
+  (with-negatives [[x y] [x&#39; y&#39;]]))
+;; [[1 2] [-1 -2]]</code></pre>
+<ul>
+<li>Useful for pre-processing of local bindings</li>
+<li>For example generating additional ones</li>
+<li>x' and y' are generated from the originals</li>
+</ul>
+</section>
+<section id="lab-03" class="level1">
+<h1>Lab 03</h1>
+<ul>
+<li>We want to create a parallel let macro.</li>
+<li>The general idea is to transform this:</li>
+</ul>
+<pre class="clojure"><code>(let [a (+ 1 1) b (* 2 2)]
+  (+ a b))</code></pre>
+<p>Into:</p>
+<pre class="clojure"><code>(let [a (future (+ 1 1)) b (future (* 2 2))]
+  (let [a (deref a) b (deref b)]
+    (+ a b)))</code></pre>
+</section>
+<section id="useful-tips-for-the-lab" class="level1">
+<h1>USeful tips for the lab</h1>
+<ul>
+<li>Use the example as a starting point for the macro.</li>
+<li>Work you way out removing specific keys/expressions.</li>
+<li>The macro should output the code ready for evaluation.</li>
+<li>Treat the bindings as an actual vector you can manipulate</li>
+<li><code>(take-nth 2 bindings)</code> gives you the names of the locals</li>
+<li><code>(take-nth 2 (rest bindings))</code> gives you the expressions</li>
+<li><code>(list 'future '(+ 1 1))</code> creates <code>(future (+ 1 1))</code></li>
+</ul>
+</section>
+<section id="specs" class="level1">
+<h1>### 4. Specs</h1>
+</section>
+<section id="intro" class="level1">
+<h1>Intro</h1>
+<ul>
+<li>Declarative description of code properties</li>
+<li><code>[clojure.spec.alpha :as s]</code> main ns</li>
+<li><code>[clojure.spec.test.alpha :as stest])</code> testing tools</li>
+<li><code>org.clojure/test.check</code> for generative</li>
+<li><code>[clojure.spec.gen.alpha :as gen]</code></li>
+<li>Usages: validation, documentation, testing, parsing</li>
+</ul>
+</section>
+<section id="vocabulary" class="level1">
+<h1>Vocabulary</h1>
+<ul>
+<li>rich APIs, it takes some time to get fluent</li>
+<li>but it's relatively easy to learn</li>
+<li>Building blocks: <code>s/def</code>, <code>s/fdef</code>, <code>s/cat</code>, <code>s/keys</code>…</li>
+<li>Interaction: <code>s/valid?</code>, <code>s/conform</code>, <code>s/explain</code>…</li>
+<li>Expressiveness: <code>s/and</code>, <code>s/or</code>, <code>s/*</code> …</li>
+</ul>
+</section>
+<section id="process" class="level1">
+<h1>Process</h1>
+<p>Mostly personal taste but:</p>
+<ul>
+<li>Sketch out concepts from the bottom</li>
+<li>Compose them up into abstractions</li>
+<li>Spec-out public facing functions (or endpoints)</li>
+<li>Have some generative testing (optional)</li>
+</ul>
+</section>
+<section id="example" class="level1">
+<h1>Example</h1>
+<ul>
+<li>A &quot;powerset&quot; is the set of all subsets of a set.</li>
+<li>There are <code>2^n</code> subsets of <code>[0 1 2]</code> (2^3 = 8)</li>
+<li>((0 1 2) (2) (0) (1) (1 2) (0 1) (2 0) ())</li>
+<li>We could write a lazy version for that</li>
+</ul>
+<pre class="clojure"><code>(defn powerset [xs]
+  (letfn [(rotate [xs]
+            (map rest (iterate #(concat (rest %) (list (first %))) xs)))
+          (step [n xs]
+            (when-let [rs (seq (take n (rotate xs)))]
+              (when (ffirst rs)
+                (into (mapcat step (range (dec n) 0 -1) rs) rs))))]
+    (keep seq (conj (step (count xs) xs) xs))))
+
+(powerset [0 1 2]) ;; okay
+;; ((0 1 2) (0 1) (2 0) (1 2) (1) (2) (0))
+
+(powerset [2 2 2]) ;; we can delegate distinct to the caller
+;; ((2 2 2) (2 2) (2 2) (2 2) (2) (2) (2))</code></pre>
+</section>
+<section id="properties" class="level1">
+<h1>Properties</h1>
+<ul>
+<li>We could write many examples of calls to <code>powerset</code></li>
+<li>Or capture the essence of a powerset into a spec</li>
+<li>Including the need for the input to be <code>distinct</code></li>
+</ul>
+<pre class="clojure"><code>(require &#39;[clojure.spec.alpha :as s]
+         &#39;[clojure.spec.test.alpha :as stest])
+
+(s/fdef powerset
+  :args (s/cat :xs (s/coll-of int? :distinct true))
+  :ret seqable?
+  :fn (fn [{:keys [args ret]}]
+        (and (= (Math/pow 2 (count (:xs args))) (count ret))
+             (= (count ret) (count (distinct ret))))))</code></pre>
+</section>
+<section id="generative-testing" class="level1">
+<h1>Generative Testing</h1>
+<ul>
+<li>We have the properties for the function</li>
+<li>We can generate as much examples as we want</li>
+</ul>
+<pre class="clojure"><code>(s/exercise-fn `powerset)
+;; wall of numbers scrolling indefinitely</code></pre>
+<ul>
+<li>We didn't say &quot;xs&quot; can't be millions of items...</li>
+</ul>
+</section>
+<section id="limited-range" class="level1">
+<h1>Limited Range</h1>
+<ul>
+<li>We can create our own &quot;type&quot; as a new spec.</li>
+<li>A list of distinct integers up to 20 in size</li>
+</ul>
+<pre class="clojure"><code>(s/def ::limited-range
+  (s/coll-of int? :max-count 20 :distinct true))</code></pre>
+<ul>
+<li>Then use it to specify the argument.</li>
+</ul>
+</section>
+<section id="lab-04" class="level1">
+<h1>Lab 04</h1>
+<ul>
+<li>I wrote a &quot;fizz-buzz&quot; and I tested it!</li>
+<li>I'm 100% sure it works.</li>
+<li>Can you write a spec for it and prove me wrong?</li>
+<li>Be sure to not over specify it</li>
+<li>Your spec should not contain the implementation</li>
+<li>Search for general facts.</li>
+<li>For example: for any given &quot;n&quot; how many distinct strings?</li>
+</ul>
+</section>
+<section id="performances" class="level1">
+<h1>### 5. Performances</h1>
+<figure>
+<img src="images/Performance-Tuning.png" />
+</figure>
+</section>
+<section id="high-level-baseline" class="level1">
+<h1>High level baseline</h1>
+<ul>
+<li>Isolate and replicate (possibly locally)</li>
+<li>Stub out network call (when possible)</li>
+<li>Measure deterministically: that's the baseline</li>
+<li>Not necessarily exact, but deterministic</li>
+<li>Usually &quot;seconds&quot; at high level</li>
+</ul>
+</section>
+<section id="hotspots" class="level1">
+<h1>Hotspots</h1>
+<ul>
+<li>Pick a profiler, for example VisualVM</li>
+<li>CPU sample, filter your app packages</li>
+<li>Replicate hotspots in code</li>
+<li>Loop the hotspots if necessary</li>
+<li>Measure deterministically</li>
+<li>Usually ms, us, or even ns</li>
+<li>You need a profiler (e.g. Criterium)</li>
+</ul>
+</section>
+<section id="type-hinting" class="level1">
+<h1>Type hinting</h1>
+<ul>
+<li>Only useful if you have Java Interop</li>
+<li>Especially useful in tight loops</li>
+<li>Less useful at high level (e.g. <code>(.close conn)</code>)</li>
+</ul>
+<pre class="clojure"><code>(import &#39;java.nio.charset.StandardCharsets)
+
+(defn get-bytes [s] (.getBytes s (StandardCharsets/UTF_8)))
+
+(get-bytes &quot;clojure&quot;)
+;; #object[&quot;[B&quot; 0x5f254608 &quot;[B@5f254608&quot;]
+
+(set! *warn-on-reflection* true)
+(defn get-bytes [s] (.getBytes s (StandardCharsets/UTF_8)))
+
+;; Reflection warning call to method getBytes can&#39;t be resolved</code></pre>
+</section>
+<section id="type-hints-impact" class="level1">
+<h1>Type hints impact</h1>
+<p>Usually 1 order of magnitude</p>
+<pre class="clojure"><code>(require &#39;[criterium.core :refer [quick-bench]])
+(quick-bench (get-bytes &quot;clojure&quot;))
+;; Execution time mean : 2.503821 µs
+(defn get-bytes [^String s] (.getBytes s (StandardCharsets/UTF_8)))
+(quick-bench (get-bytes &quot;clojure&quot;))
+;; Execution time mean : 62.361678 ns</code></pre>
+</section>
+<section id="whats-going-on" class="level1">
+<h1>What's going on</h1>
+<ul>
+<li>We are going to use the <code>no.disassemble</code> library</li>
+</ul>
+<pre class="clojure"><code>(require &#39;[no.disassemble :refer [disassemble]])
+(println (disassemble get-bytes))</code></pre>
+<ul>
+<li>Search for <code>invokeStatic</code></li>
+<li><code>invoke</code> is used <code>when</code> get-bytes is high order</li>
+</ul>
+</section>
+<section id="before-type-hints" class="level1">
+<h1>Before type hints</h1>
+<pre class="clojure"><code>public static java.lang.Object invokeStatic(java.lang.Object s);
+   3  ldc &lt;String &quot;getBytes&quot;&gt; [13]
+   5  iconst_1
+   6  anewarray java.lang.Object [15]
+   9  dup
+  10  iconst_0
+  11  getstatic java.nio.charset.StandardCharsets.UTF_8
+  14  aastore
+  15  invokestatic clojure.lang.Reflector.invokeInstanceMethod
+        (java.lang.Object, java.lang.String, java.lang.Object[])</code></pre>
+</section>
+<section id="after-type-hinting" class="level1">
+<h1>After type hinting</h1>
+<pre class="clojure"><code>public static java.lang.Object invokeStatic(java.lang.Object s);
+   6  getstatic java.nio.charset.StandardCharsets.UTF_8
+   9  checkcast java.nio.charset.Charset [21]
+  12  invokevirtual java.lang.String.getBytes
+        (java.nio.charset.Charset)</code></pre>
+</section>
+<section id="transducers" class="level1">
+<h1>Transducers</h1>
+<ul>
+<li>Easy win for long chain of threaded macros</li>
+<li>Less win for shorter chain or trivial transforms</li>
+<li>Sometimes porting to transducers is not trivial</li>
+</ul>
+</section>
+<section id="parallelism" class="level1">
+<h1>Parallelism</h1>
+<ul>
+<li><code>pmap</code></li>
+<li><code>r/fold</code></li>
+<li><code>core.async</code> pipelines</li>
+<li>custom with <code>future</code> and <code>deref</code></li>
+</ul>
+</section>
+<section id="lab-05" class="level1">
+<h1>Lab 05</h1>
+<ul>
+<li>Pick a project you work on</li>
+<li>Better if not too big and easily runnable</li>
+<li>Connect VisualVM</li>
+<li>Find hotspots</li>
+<li>Easy fixes?</li>
+</ul>
+</section>
+</div>
+
+<script src="reveal.js/lib/js/head.min.js"></script>
+<script src="reveal.js/js/reveal.js"></script>
+
+<script>
+  // Full list of configuration options available here:
+  // https://github.com/hakimel/reveal.js#configuration
+  Reveal.initialize({
+    controls: true,
+    progress: true,
+    history: true,
+    center: false,
+
+  // available themes are in /css/theme
+      theme: Reveal.getQueryHash().theme || 'beige',
+  
+  // default/cube/page/concave/zoom/linear/fade/none
+      transition: Reveal.getQueryHash().transition || 'linear',
+  
+    dependencies: [
+      { src: 'reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+      { src: 'reveal.js/plugin/markdown/showdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+      { src: 'reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+      { src: 'reveal.js/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+      { src: 'reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+      { src: 'reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } },
+      { src: 'reveal.js/plugin/toc-progress/toc-progress.js', async: true, callback: function() { toc_progress.initialize(); toc_progress.create(); } }
+      // { src: 'reveal.js/plugin/remotes/remotes.js', async: true, condition: function() { return !!document.body.classList; } }
+    ]
+  });
+
+</script>
+
+</body>
+</html>
