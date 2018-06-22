@@ -1,13 +1,13 @@
 ---
-author: uSwtich
+author: 1 day, 5 units and related labs
 title: Clojure Advanced Workshop
-date: June, 2018
+date: https://github.com/uswitch/uswitch-academy/tree/master/clojure-advanced
 ---
 
 # Agenda
 
-* Lazy Sequences
-* Polymorphism
-* Macros
-* Specs
-* Performance tuning, java interop
+1. Lazy Sequences
+2. Polymorphism
+3. Macros
+4. Specs
+5. Performance tuning, java interop
