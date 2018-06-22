@@ -11,4 +11,3 @@ date: June, 2018
 * Macros
 * Specs
 * Performance tuning, java interop
-* Concurrency, atom, future, delay, pmap
