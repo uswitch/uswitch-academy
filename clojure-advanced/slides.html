@@ -381,13 +381,22 @@
 <section id="macros" class="level1">
 <h1>### 3. Macros</h1>
 </section>
+<section id="what-are-macros" class="level1">
+<h1>What are macros?</h1>
+<ul>
+<li>Special functions that evaluate before other code evaluates</li>
+<li>They see normal code as data structures</li>
+<li>Their output is then subject to normal evaluation</li>
+<li>Macro effectively &quot;expands&quot; in place of their call site</li>
+</ul>
+</section>
 <section id="why-macros" class="level1">
 <h1>Why macros?</h1>
 <ul>
-<li>Expanding the language possibilities</li>
-<li>Loads of examples in the stdlib: <code>-&gt;&gt;</code>, <code>for</code>, <code>definline</code>, <code>lazy-seq</code>, etc etc.</li>
-<li>Avoid repetition, for example generating lots of similar functions</li>
-<li>Setup/teardown behaviour (e.g. <code>with-open</code>)</li>
+<li>In general, they expand language possibilities</li>
+<li>Loads in the stdlib: <code>-&gt;&gt;</code>, <code>for</code>, <code>with-redefs</code>, <code>with-open</code></li>
+<li>Generate lots of similar functions (for example to call AWS services)</li>
+<li>Setup/teardown behaviour (e.g. <code>with-open</code>, <code>with-redefs</code>)</li>
 <li>DSLs and small compilers (e.g. <code>for</code> has a &quot;dsl&quot; and related compiler)</li>
 </ul>
 </section>
@@ -660,7 +669,7 @@
 <h1>Lab 04</h1>
 <ul>
 <li>I wrote a &quot;fizz-buzz&quot; and I tested it!</li>
-<li>I'm 100% sure it works.</li>
+<li>I'm 100% sure it works, even with negatives!</li>
 <li>Can you write a spec for it and prove me wrong?</li>
 <li>Be sure to not over specify it</li>
 <li>Your spec should not contain the implementation</li>
@@ -817,6 +826,14 @@
     ]
   });
 
+</script>
+
+<script>
+    var link = document.createElement( 'link' );
+    link.rel = 'stylesheet';
+    link.type = 'text/css';
+    link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+    document.getElementsByTagName( 'head' )[0].appendChild( link );
 </script>
 
 </body>
