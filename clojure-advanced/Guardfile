@@ -1,0 +1,5 @@
+guard :shell do
+  watch(/(.*).md/) do |m|
+    `echo "Reloading #{m[0]}"; pandoc -t html5 --template=template-revealjs.html --no-highlight --section-divs --variable theme="beige" --variable transition="linear" 0*-*.md -o slides.html` unless m[0] == "README.md" || m[0] == "toc.md"
+  end
+end

@@ -1,0 +1,13 @@
+{:paths ["resources" "src"]
+ :deps {org.clojure/clojure {:mvn/version "1.9.0"}
+        org.clojure/test.check {:mvn/version "0.9.0"}}
+ :test-refresh {:changes-only true
+                :watch-dirs ["src" "test"]
+                :refresh-dirs ["src" "test"]}
+ :aliases
+ {:test
+  {:extra-paths ["test"]
+   :extra-deps {com.cognitect/test-runner
+                {:git/url "https://github.com/reborg/test-runner"
+                 :sha "6edac4045c0c5d5ceb1c7d44932fc39033dee2e8"}}
+   :main-opts ["-m" "cognitect.test-runner"]}}}
