@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+
+<title>Clojure Transducers Workshop</title>
+
+<meta name="description" content="Clojure Transducers Workshop">
+
+  <meta name="author" content="1 day, 5 units and related labs" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<link rel="stylesheet" href="reveal.js/plugin/toc-progress/toc-progress.css">
+<link rel="stylesheet" href="reveal.js/css/reveal.css">
+  <link rel="stylesheet" href="reveal.js/css/theme/beige.css" id="theme">
+
+
+<!-- For syntax highlighting -->
+  <link rel="stylesheet" href="reveal.js/lib/css/zenburn.css">
+
+
+<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+<script>
+  document.write( '<link rel="stylesheet" href="reveal.js/css/print/' +
+    ( window.location.search.match( /print-pdf/gi ) ? 'pdf' : 'paper' ) +
+    '.css" type="text/css" media="print">' );
+</script>
+
+<!--[if lt IE 9]>
+<script src="lib/js/html5shiv.js"></script>
+<![endif]-->
+</head>
+
+<body>
+
+<div class="reveal">
+
+<!-- Any section element inside of this container is displayed as a slide -->
+<div class="slides">
+
+<section>
+<h1>Clojure Transducers Workshop</h1>
+<h3>1 day, 5 units and related labs</h3>
+<p>
+<h4>https://github.com/uswitch/uswitch-academy/tree/master/clojure-transducers</h4>
+</p>
+</section>
+
+
+<section id="agenda" class="level1">
+<h1>Agenda</h1>
+<ol type="1">
+<li>Transducers basics</li>
+<li>Custom transducers</li>
+<li>Transducers and core.async</li>
+<li>Parallelizing transducers</li>
+</ol>
+</section>
+<section id="the-basics" class="level1">
+<h1>### 1. The Basics</h1>
+</section>
+<section id="what-are-transducers" class="level1">
+<h1>What are transducers?</h1>
+<ul>
+<li>A model for sequential processing</li>
+<li>An abstraction on top of <code>reduce</code></li>
+<li>A functional pattern</li>
+<li>A computational recipe</li>
+</ul>
+</section>
+<section id="what-are-they-not" class="level1">
+<h1>What are they not?</h1>
+<ul>
+<li>A library</li>
+<li>A replacement for sequences</li>
+<li>A performance optimization (not only)</li>
+<li>Reducers (but they share a similar design)</li>
+</ul>
+</section>
+<section id="quick-compare" class="level1">
+<h1>Quick compare</h1>
+<pre class="clojure"><code>
+(reduce +                    (transduce
+  (filter odd?                 (comp
+    (map inc                     (map inc)
+      (range 10))))             (filter odd?))
+                              +  (range 10))</code></pre>
+</section>
+<section id="more-compare" class="level1">
+<h1>More compare</h1>
+<pre class="clojure"><code>
+(-&gt;&gt;                        (transduce
+  (range 10)                  (comp
+  (map inc)                      (map inc)
+  (filter odd?)                 (filter odd?))
+  (reduce +))                 +  (range 10))</code></pre>
+</section>
+<section id="clear-differences" class="level1">
+<h1>Clear differences</h1>
+<pre><code>**Sequential**                    **Transducers**
+
+* No `comp`                       `comp` (remove nesting)
+* Nested calls                    `transduce` instead of `reduce`
+* Using `reduce`                  Transforms are &quot;grouped&quot;</code></pre>
+</section>
+<section id="subtle-differences" class="level1">
+<h1>Subtle differences</h1>
+<pre><code>**Sequential**                    **Transducers**
+* n-intermediate sequences        * No intermediate sequences
+* Isolated Transforms             * Composed Transforms
+* n-sequential scans              * `transduce` uses `reduce`
+* Transform on sequential scan    * Transform evaluates lazily</code></pre>
+</section>
+<section id="why-do-we-care" class="level1">
+<h1>Why do we care?</h1>
+<ul>
+<li>Transforms are isolated from sequential mechanism</li>
+<li>Transforms are more composable/reusable</li>
+<li>Single pass iteration boost performances</li>
+<li>Sequential iteration is someone else's responsibility</li>
+</ul>
+</section>
+<section id="always-possible" class="level1">
+<h1>Always possible?</h1>
+<ul>
+<li>Some transforms aren't immediate to translate:</li>
+</ul>
+<pre class="clojure"><code>(-&gt;&gt; [[0 1 2] [3 4 5] [6 7 8]] (apply map vector))</code></pre>
+<ul>
+<li>Scenarios involving infinite laziness:</li>
+</ul>
+<pre class="clojure"><code>(take 3 (sequence (mapcat repeat) [1])) ;; boom!</code></pre>
+<ul>
+<li>Realising intermediate results unnecessarily:</li>
+</ul>
+<pre class="clojure"><code>(first
+  (sequence
+    (comp (mapcat range) (mapcat range))
+  [3000 6000 9000])) ;; boom!</code></pre>
+</section>
+<section id="always-faster" class="level1">
+<h1>Always faster?</h1>
+<ul>
+<li>Avoid on small collections</li>
+<li>Avoid for just few transforms</li>
+<li>Avoid for trivial transforms</li>
+</ul>
+<p><strong>When in doubt, measure</strong></p>
+</section>
+<section id="main-api" class="level1">
+<h1>Main API</h1>
+<ul>
+<li><code>transduce</code>: eager, single pass. All input evaluated.</li>
+<li><code>sequence</code>: delayed, chunked (32), cached.</li>
+<li><code>eduction</code>: delayed, chunked (32) no caching.</li>
+<li><code>into</code>: eager. <code>transduce</code> &quot;into&quot; another data type.</li>
+</ul>
+</section>
+<section id="current-line-up" class="level1">
+<h1>Current line-up</h1>
+<pre><code>mapcat, remove, take, take-while, take-nth
+drop, drop-while, replace, partition-by, halt-when
+partition-all, keep, keep-indexed, map-indexed
+distinct, interpose, dedupe, random-sample, cat</code></pre>
+</section>
+<section id="resources" class="level1">
+<h1>Resources</h1>
+<ul>
+<li><a href="https://www.youtube.com/watch?v=6mTbuzafcII">Transducers presentation</a> by Rich</li>
+<li>Transducers official <a href="https://clojure.org/reference/transducers">reference guide</a></li>
+<li>Article about the Transducers <a href="https://labs.uswitch.com/transducers-from-the-ground-up-the-essence/">functional abstraction</a></li>
+</ul>
+</section>
+<section id="labs-intro" class="level1">
+<h1>Labs Intro</h1>
+<pre class="bash"><code>git clone https://github.com/uswitch/uswitch-academy.git
+cd clojure-transducers
+lein repl</code></pre>
+<p>It is assumed you can evaluate the code in the labs with your favourite IDE.</p>
+</section>
+<section id="driving-example" class="level1">
+<h1>Driving Example</h1>
+<ul>
+<li>App receiving regular updates of fin products</li>
+<li>Users can search for the best product.</li>
+<li>Each update contains +10k products as Clojure maps.</li>
+<li>We want to process the data in a modular/timely manner.</li>
+<li>Open <code>src/transducers_workshop/lab01.clj</code> to get started</li>
+</ul>
+</section>
+</div>
+
+<script src="reveal.js/lib/js/head.min.js"></script>
+<script src="reveal.js/js/reveal.js"></script>
+
+<script>
+  // Full list of configuration options available here:
+  // https://github.com/hakimel/reveal.js#configuration
+  Reveal.initialize({
+    controls: true,
+    progress: true,
+    history: true,
+    center: false,
+
+  // available themes are in /css/theme
+      theme: Reveal.getQueryHash().theme || 'beige',
+  
+  // default/cube/page/concave/zoom/linear/fade/none
+      transition: Reveal.getQueryHash().transition || 'linear',
+  
+    dependencies: [
+      { src: 'reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+      { src: 'reveal.js/plugin/markdown/showdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+      { src: 'reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+      { src: 'reveal.js/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+      { src: 'reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+      { src: 'reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } },
+      { src: 'reveal.js/plugin/toc-progress/toc-progress.js', async: true, callback: function() { toc_progress.initialize(); toc_progress.create(); } }
+      // { src: 'reveal.js/plugin/remotes/remotes.js', async: true, condition: function() { return !!document.body.classList; } }
+    ]
+  });
+
+</script>
+
+</body>
+</html>
