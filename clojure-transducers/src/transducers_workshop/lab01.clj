@@ -70,8 +70,6 @@
 ; 4. If the search params contain a :loan-amount, only show products where
 ;    :min-loan-amount <= loan-amout <= :max-loan-amount
 
-; ######### Task 2b: can you answer why wea are using eduction here? Why not sequence or transduce?
-
 (defn xform [params]
   ;; ... add your filters to the comp.
   ;; They depend on the content of params.
@@ -89,7 +87,9 @@
 (count (seq xs))
 ; You should see 117 products with those filters.
 
-; ########### Task 3: store searches for company-id 46 and company-id 50.
+; ######### Task 2b: can you answer why wea are using eduction here? Why not sequence or transduce?
+
+; ######### Task 3: store searches for company-id 46 and company-id 50.
 
 ; Next task is about creating defs for two very frequent searches
 ; (say that we notice 80% of our traffic comes from the same parameters
@@ -113,3 +113,4 @@
 ; ("Loan Monthly AAA124 C/A Product A126 1% Tier 10 Starter")
 
 ; ############ Task 3a: what should I do if company-id 50 launches a new product in the feed?
+

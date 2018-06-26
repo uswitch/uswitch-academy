@@ -192,6 +192,215 @@ lein repl</code></pre>
 <li>Open <code>src/transducers_workshop/lab01.clj</code> to get started</li>
 </ul>
 </section>
+<section id="custom-xforms" class="level1">
+<h1>### 2. Custom Xforms</h1>
+<figure>
+<img src="images/01-fold-paper.png" />
+</figure>
+</section>
+<section id="fold" class="level1">
+<h1><code>fold</code></h1>
+<ul>
+<li>The idea: redefine sequential operations as folds</li>
+<li><code>fold</code> is a class of recursive-iterative algorithms</li>
+<li>Results are part of the args, no stack consumption</li>
+<li>Transform &quot;f&quot; also knows how to accumulate results</li>
+<li><code>reduce</code> is fold-left: &quot;folds&quot; items from left to right</li>
+<li>Effects: isolate transforms and accumulation details</li>
+</ul>
+</section>
+<section id="core-mapfilter" class="level1">
+<h1>core map/filter</h1>
+<pre class="clojure"><code>(defn map [f coll]
+  (lazy-seq
+    (when-let [s (seq coll)] ; terminating condition
+      (cons
+        (f (first s))        ; applying transform
+        (map f (rest s)))))) ; non tail-recursive
+
+(defn filter [pred coll]
+  (lazy-seq
+    (when-let [s (seq coll)]
+      (let [f (first s) r (rest s)]
+        (if (pred f)
+          (cons f (filter pred r))
+          (filter pred r))))))</code></pre>
+</section>
+<section id="fold-left-aka-reduce" class="level1">
+<h1>fold-left (<code>aka</code> reduce)</h1>
+<pre class="clojure"><code>(defn fold
+ ([f coll]                  ; arity to setup an &quot;init&quot;
+  (fold f [] coll))
+ ([f result coll] 
+  (if coll                   ; termination condition
+   (recur                   ; tail recursive
+    f                       ; &quot;f&quot; decides how to accumulate
+    (f result (first coll)) ; transform applied here
+    (next coll))            ; move on next element
+  result)))                 ; return results when no more items</code></pre>
+</section>
+<section id="moving-to-fold" class="level1">
+<h1>Moving to fold</h1>
+<ul>
+<li>Express <code>map</code>, <code>filter</code>, etc. as <code>fold</code></li>
+<li>We need to move from linear recursive to iterative.</li>
+<li>We need &quot;f&quot; to gradually build results.</li>
+<li>We need an &quot;init&quot; result to start from.</li>
+<li>It can't be lazy (there is no seq building)</li>
+</ul>
+</section>
+<section id="step-1-shape-up" class="level1">
+<h1>step 1: shape-up</h1>
+<pre class="clojure"><code>(defn map [f result coll]
+  (if coll
+    (map f (f result (first coll)) (next coll))
+    result))
+
+;; Example: (map inc (range 10))
+(map #(conj %1 (inc %2)) [] (range 10))
+
+(defn filter [f result coll]
+  (if coll
+    (filter f (f result (first coll)) (next coll))
+    result))
+
+;; Example: (filter odd? (range 10))
+(filter #(if (odd? %2) (conj %1 %2) %1) [] (range 10))</code></pre>
+</section>
+<section id="step-2-rename" class="level1">
+<h1>step 2: rename</h1>
+<p><code>map</code> and <code>filter</code> are the same! Rename to transform.</p>
+<pre class="clojure"><code>(defn transform [f result coll]
+  (if coll
+    (transform f (f result (first coll)) (next coll))
+    result))
+
+;; Example: (map inc (range 10))
+(transform #(conj %1 (inc %2)) [] (range 10))
+
+;; Example: (filter odd? (range 10))
+(transform #(if (odd? %2) (conj %1 %2) %1) [] (range 10))</code></pre>
+</section>
+<section id="step-3-transformreduce" class="level1">
+<h1>step 3: transform==reduce</h1>
+<p><code>transform</code> <strong>is</strong> <code>reduce</code>!</p>
+<pre class="clojure"><code>;; Example: (map inc (range 10))
+(reduce #(conj %1 (inc %2)) [] (range 10))
+
+;; Example: (filter odd? (range 10))
+(reduce #(if (odd? %2) (conj %1 %2) %1) [] (range 10))</code></pre>
+</section>
+<section id="step-4-anon-to-function" class="level1">
+<h1>step 4: anon to function</h1>
+<p>Let's extract those anons into fns.</p>
+<pre class="clojure"><code>(defn mapping [result el]
+  (conj result (inc el)))
+
+;; Example: (map inc (range 10))
+(reduce mapping [] (range 10))
+
+(defn filtering [result el]
+  (if (odd? el)
+    (conj result el)
+    result))
+
+;; Example: (filter odd? (range 10))
+(reduce filtering [] (range 10))</code></pre>
+</section>
+<section id="step-5-extract-accumulation" class="level1">
+<h1>step 5: Extract accumulation</h1>
+<p><code>conj</code> is specific accumulation logic. Extract param.</p>
+<pre class="clojure"><code>(defn mapping [rf]
+  (fn [result el]
+    (rf result (inc el))))
+
+;; Example: (map inc (range 10))
+(reduce (mapping conj) [] (range 10))
+
+(defn filtering [rf]
+  (fn [result el]
+    (if (odd? el)
+      (rf result el)
+      result)))
+
+;; Example: (filter odd? (range 10))
+(reduce (filtering conj) [] (range 10))</code></pre>
+</section>
+<section id="step-6-extract-transform" class="level1">
+<h1>step 6: Extract transform</h1>
+<p><code>inc</code> and <code>odd?</code> are specific transform logic. Extract param.</p>
+<pre class="clojure"><code>(defn mapping [f]
+  (fn [rf]
+    (fn [result el]
+      (rf result (f el)))))
+
+;; Example: (map inc (range 10))
+(reduce ((mapping inc) conj) [] (range 10))
+
+(defn filtering [pred]
+  (fn [rf]
+    (fn [result el]
+      (if (pred el) (rf result el) result))))
+
+;; Example: (filter odd? (range 10))
+(reduce ((filtering odd?) conj) [] (range 10))</code></pre>
+</section>
+<section id="step-7-encapsulate-call" class="level1">
+<h1>step 7: encapsulate call</h1>
+<p><code>mapping</code> and <code>filtering</code> need preparation for use. Extract that complexity away in new function <code>wrapper</code> &quot;init&quot; can be obtained from <code>(rf)</code></p>
+<pre class="clojure"><code>(defn wrapper [xf rf coll]
+  (reduce (xf rf) (rf) coll))
+
+;; Example: (map inc (range 10))
+(wrapper (mapping inc) conj (range 10))
+
+;; Example: (filter odd? (range 10))
+(wrapper (filtering odd?) conj (range 10))</code></pre>
+</section>
+<section id="step-8-final-touches" class="level1">
+<h1>step 8: final touches</h1>
+<ul>
+<li>We reached our desired form.</li>
+<li>Can you guess how &quot;wrapper&quot; was officially named?</li>
+<li>And what about &quot;mapping&quot; or &quot;filtering&quot;?</li>
+<li>What mapping/filtering have in common?</li>
+</ul>
+</section>
+<section id="additional-details" class="level1">
+<h1>Additional details</h1>
+<ul>
+<li><code>mapping</code>/<code>filtering</code> are very similar to map/filter</li>
+<li>Same for <code>wrapper</code> which was named <code>transduce</code></li>
+<li>The stdlib also implements setup/tear-down behaviors</li>
+<li>This is why <code>map</code> and <code>filter</code> xform have more arities</li>
+<li>A &quot;good transducer&quot; also need to behave correctly</li>
+</ul>
+</section>
+<section id="designing-a-transducer" class="level1">
+<h1>Designing a transducer</h1>
+<ul>
+<li>Deal with the end of the reduction in 1-arg arity</li>
+<li>Provide an initial value in 0-arg arity (currently unused)</li>
+<li>Where to initialize state (for stateful xforms)</li>
+<li>How to terminate early (if needed)</li>
+<li>Surrounding xforms awareness (mandatory calls)</li>
+</ul>
+</section>
+<section id="resources-1" class="level1">
+<h1>Resources</h1>
+<ul>
+<li>A tutorial on the <a href="www.cs.nott.ac.uk/~pszgmh/fold.pdf">universality and expressiveness of fold</a></li>
+<li>uSwitch Labs <a href="https://labs.uswitch.com/transducers-from-the-ground-up-the-essence/">transducers articles</a></li>
+</ul>
+</section>
+<section id="lab-02" class="level1">
+<h1>Lab 02</h1>
+<ul>
+<li>Task 1: create a &quot;logging&quot; transducer to print useful info.</li>
+<li>Task 2: create a stateful moving average transducer</li>
+<li>Open <code>src/transducers_workshop/lab02.clj</code> to get started</li>
+</ul>
+</section>
 </div>
 
 <script src="reveal.js/lib/js/head.min.js"></script>
