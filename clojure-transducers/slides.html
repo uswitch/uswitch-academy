@@ -401,6 +401,95 @@ lein repl</code></pre>
 <li>Open <code>src/transducers_workshop/lab02.clj</code> to get started</li>
 </ul>
 </section>
+<section id="xf-core.async" class="level1">
+<h1>### 3. Xf core.async</h1>
+</section>
+<section id="where-it-all-started" class="level1">
+<h1>Where it all started</h1>
+<ul>
+<li>core.async was shaping up back in 2012-2013</li>
+<li>Having <code>(map f in out)</code> was desirable feat.</li>
+<li>But a channel is not a sequence</li>
+<li>Don't want to reimplement it all over:</li>
+</ul>
+<pre class="clojure"><code>(defn map [f in out]
+ (go-loop []
+  (let [val (&lt;! in)]
+   (if (nil? val)
+    (close! out)
+    (do (doseq [v (f val)] (&gt;! out v))
+        (when-not (impl/closed? out)
+         (recur)))))))</code></pre>
+</section>
+<section id="reuse-the-same-xforms" class="level1">
+<h1>Reuse the same xforms</h1>
+<ul>
+<li>No need to reimplement all over.</li>
+<li>Reuse the same xforms! 3 options:</li>
+<li><code>a/channel</code></li>
+<li><code>a/transduce</code></li>
+<li><code>a/pipeline</code></li>
+</ul>
+</section>
+<section id="achannel" class="level1">
+<h1><code>a/channel</code></h1>
+<pre class="clojure"><code>(defn consumer [xf]
+  (let [in (a/chan (a/sliding-buffer 64) xf)]
+    (a/go-loop [x (a/&lt;! in)]
+      (when x
+        (println &quot;consumer received data&quot; x)
+        (recur (a/&lt;! in)))) in))
+
+(defn producer [xs &amp; chs]
+  (a/go (doseq [x xs ch chs]
+      (a/&lt;! (a/timeout 1000))
+      (a/&gt;! ch x))))</code></pre>
+<pre class="clojure"><code>(producer
+  &quot;hello&quot;
+  (consumer (map (comp keyword str)))
+  (consumer (map int)))
+
+;; consumer received data 104
+;; consumer received data :e
+…</code></pre>
+</section>
+<section id="atransduce" class="level1">
+<h1>a/transduce</h1>
+<ul>
+<li>Accepts a channel as input</li>
+<li>Returns a channel with the reduction results</li>
+</ul>
+<pre class="clojure"><code>(a/&lt;!!
+  (a/transduce
+    (comp (map inc) (filter odd?))
+    + 0
+    (a/to-chan (range 10))))
+;; 25</code></pre>
+</section>
+<section id="apipeline" class="level1">
+<h1>a/pipeline</h1>
+<pre class="clojure"><code>(let [out (a/chan (a/buffer 100))]
+  (a/pipeline 4 out
+    (comp (map inc))
+    (a/to-chan (range 10)))
+  (a/&lt;!! (a/into [] out)))
+;; [1 2 3 4 5 6 7 8 9 10]</code></pre>
+</section>
+<section id="resources-2" class="level1">
+<h1>Resources</h1>
+<ul>
+<li>Communicating Sequential Processes (CSP) <a href="www.usingcsp.com/cspbook.pdf">paper</a></li>
+<li>Core.async <a href="https://github.com/clojure/core.async/blob/master/examples/walkthrough.clj">walk-through</a></li>
+<li><a href="https://www.braveclojure.com/core-async/">Brave Clojure guide</a></li>
+</ul>
+</section>
+<section id="lab-03" class="level1">
+<h1>Lab 03</h1>
+<ul>
+<li>Task 1: create channels and orchestrate them so incoming products end up in a local cache.</li>
+<li>Task 2: use the &quot;prepare-data&quot; transducer from <code>lab01</code> to transform incoming products.</li>
+</ul>
+</section>
 </div>
 
 <script src="reveal.js/lib/js/head.min.js"></script>
