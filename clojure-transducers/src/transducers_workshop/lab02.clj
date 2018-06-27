@@ -37,12 +37,12 @@
       ([result input] nil))))
 
 ;; When "enabled" is false, nothing is printed on screen:
-(sequence (comp (log false) (filter odd?) (map inc)) (range 10))
+; (sequence (comp (log false) (filter odd?) (map inc)) (range 10))
 ;; (2 4 6 8 10)
 
 ; But when "enabled" is "true" we can see both the results so far as well as
 ; the current element at each step during the reduction process.
-(transduce (comp (log true) (filter odd?) (map inc)) + (range 5))
+; (transduce (comp (log true) (filter odd?) (map inc)) + (range 5))
 ;; acc 0 el 0
 ;; acc 0 el 1
 ;; acc 2 el 2
@@ -98,19 +98,19 @@
    (sequence (moving-average) coll)))
 
 ; This is what you should see for a simple example:
-(sequence (comp (map inc) (moving-average)) (range 10))
+; (sequence (comp (map inc) (moving-average)) (range 10))
 ;; (1 3/2 2 5/2 3 7/2 4 9/2 5 11/2)
 
 ; The following adds a little more complexity and size to the problem
 ; by using mapcat to generate more numbers:
-(def avgs
-  (sequence
-    (comp (map dec)
-          (mapcat range)
-          (filter odd?)
-          (moving-average)
-          (map double))
-    (range)))
+; (def avgs
+;   (sequence
+;     (comp (map dec)
+;           (mapcat range)
+;           (filter odd?)
+;           (moving-average)
+;           (map double))
+;     (range)))
 
-(take 10 avgs)
+; (take 10 avgs)
 ;; (1.0 1.0 1.0 1.5 1.4 1.666666666666667 1.571428571428571 1.75 2.111111111111111 2.0)
