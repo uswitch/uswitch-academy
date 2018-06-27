@@ -3,6 +3,9 @@
             [transducers-workshop.xf :as xf])
   (:import java.util.Date))
 
+; Welcome to the labs. Please read the comments below and follow the
+; instructions. There are 3 tasks and a few questions.
+
 (defn load-data
   "Load example feed from disk."
   []
@@ -11,8 +14,9 @@
 ; Data in the feed are stored as the following group of keys. The
 ; :product key contains many other keys that are not displayed here
 ; for brevity. Our goal is to change the shape of this input map and be
-; able to filter only the products we are interested. Have a look at
-; the shape of the incoming data below:
+; able to filter only the products we are interested in.
+
+; Have a look at the shape of the incoming data:
 
 ; INPUT shape
 ; [{:fee-attributes []
@@ -22,12 +26,10 @@
 ;   :product {}
 ;   :created-at 111111}]
 
-; If you want, also take a look at the actual feed in ./feed.edn.
-; You'll see all the keys inside a product.
-; We want to merge everything into the :product key, so after a few
-; transformations, this is the expected shape of the output list.
-; key1, key2 etc, are the keys previously contained inside the :product map
-; that we are getting rid of:
+; (If you want, also take a look at the actual feed in ./feed.edn)
+
+; We want to merge all keys into the :product key only and we need
+; a few more transformations. This is the final shape of the output list:
 
 ; OUTPUT shape:
 ; [{:key1 "val1"
@@ -39,7 +41,8 @@
 ;   :fee-attributes [1 2 3]
 ;   :created-at java.util.Date}]
 
-; Task 1: prepare the data.
+; ######## Task 1: prepare the data.
+
 ; Write a combination of transducers to perform the following:
 ; 1 Merge :fee-attributes and :create-at into the :product map.
 ; 2 Transform :created-at date from long into java.util.Date
@@ -57,7 +60,8 @@
 ; Is the map in the expected shape?
 (first (products (load-data)))
 
-; Task 2: now add filtering to perform the following:
+; ########### Task 2: now add filtering to perform the following:
+
 ; 1. Only show a product if it is :visible and :online (they should be true to be present in the list)
 ; 2. If the search params contain a :company-id, then filter for that company ID
 ; 3. If the search params contain a :repayment-method key (with a value :payment-method-repayment
@@ -65,8 +69,6 @@
 ;    A product could have ":payment-method-repayment false" and in that case we don't want to see it.
 ; 4. If the search params contain a :loan-amount, only show products where
 ;    :min-loan-amount <= loan-amout <= :max-loan-amount
-
-; Bonus: can you answer why wea are using eduction here? Why not sequence or transduce?
 
 (defn xform [params]
   ;; ... add your filters to the comp.
@@ -85,7 +87,10 @@
 (count (seq xs))
 ; You should see 117 products with those filters.
 
-; Task 3: store searches for company-id 46 and company-id 50.
+; ######### Task 2b: can you answer why wea are using eduction here? Why not sequence or transduce?
+
+; ######### Task 3: store searches for company-id 46 and company-id 50.
+
 ; Next task is about creating defs for two very frequent searches
 ; (say that we notice 80% of our traffic comes from the same parameters
 ; pattern). Assuming we can accept to have them in memory all the time,
@@ -107,4 +112,5 @@
 (map :name company2)
 ; ("Loan Monthly AAA124 C/A Product A126 1% Tier 10 Starter")
 
-; Bonus: what should I do if company-id 50 launches a new product in the feed?
+; ############ Task 3a: what should I do if company-id 50 launches a new product in the feed?
+

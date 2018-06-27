@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+
+<title>Clojure Transducers Workshop</title>
+
+<meta name="description" content="Clojure Transducers Workshop">
+
+  <meta name="author" content="1 day, 4 units and related labs" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<link rel="stylesheet" href="reveal.js/plugin/toc-progress/toc-progress.css">
+<link rel="stylesheet" href="reveal.js/css/reveal.css">
+  <link rel="stylesheet" href="reveal.js/css/theme/beige.css" id="theme">
+
+
+<!-- For syntax highlighting -->
+  <link rel="stylesheet" href="reveal.js/lib/css/zenburn.css">
+
+
+<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+<script>
+  document.write( '<link rel="stylesheet" href="reveal.js/css/print/' +
+    ( window.location.search.match( /print-pdf/gi ) ? 'pdf' : 'paper' ) +
+    '.css" type="text/css" media="print">' );
+</script>
+
+<!--[if lt IE 9]>
+<script src="lib/js/html5shiv.js"></script>
+<![endif]-->
+</head>
+
+<body>
+
+<div class="reveal">
+
+<!-- Any section element inside of this container is displayed as a slide -->
+<div class="slides">
+
+<section>
+<h1>Clojure Transducers Workshop</h1>
+<h3>1 day, 4 units and related labs</h3>
+<p>
+<h4>https://github.com/uswitch/uswitch-academy/tree/master/clojure-transducers</h4>
+</p>
+</section>
+
+
+<section id="agenda" class="level1">
+<h1>Agenda</h1>
+<ol type="1">
+<li>Transducers basics</li>
+<li>Custom transducers</li>
+<li>Transducers and core.async</li>
+<li>Parallelizing transducers</li>
+</ol>
+</section>
+<section id="the-basics" class="level1">
+<h1>### 1. The Basics</h1>
+</section>
+<section id="what-are-transducers" class="level1">
+<h1>What are transducers?</h1>
+<ul>
+<li>A model for sequential processing</li>
+<li>An abstraction on top of <code>reduce</code></li>
+<li>A functional pattern</li>
+<li>A computational recipe</li>
+</ul>
+</section>
+<section id="what-are-they-not" class="level1">
+<h1>What are they not?</h1>
+<ul>
+<li>A library</li>
+<li>A replacement for sequences</li>
+<li>A performance optimization (not only)</li>
+<li>Reducers (but they share a similar design)</li>
+</ul>
+</section>
+<section id="quick-compare" class="level1">
+<h1>Quick compare</h1>
+<pre class="clojure"><code>
+(reduce +                    (transduce
+  (filter odd?                 (comp
+    (map inc                     (map inc)
+      (range 10))))             (filter odd?))
+                              +  (range 10))</code></pre>
+</section>
+<section id="more-compare" class="level1">
+<h1>More compare</h1>
+<pre class="clojure"><code>
+(-&gt;&gt;                        (transduce
+  (range 10)                  (comp
+  (map inc)                      (map inc)
+  (filter odd?)                 (filter odd?))
+  (reduce +))                 +  (range 10))</code></pre>
+</section>
+<section id="clear-differences" class="level1">
+<h1>Clear differences</h1>
+<pre><code>**Sequential**                    **Transducers**
+
+* No `comp`                       `comp` (remove nesting)
+* Nested calls                    `transduce` instead of `reduce`
+* Using `reduce`                  Transforms are &quot;grouped&quot;</code></pre>
+</section>
+<section id="subtle-differences" class="level1">
+<h1>Subtle differences</h1>
+<pre><code>**Sequential**                    **Transducers**
+* n-intermediate sequences        * No intermediate sequences
+* Isolated Transforms             * Composed Transforms
+* n-sequential scans              * `transduce` uses `reduce`
+* Transform on sequential scan    * Transform evaluates lazily</code></pre>
+</section>
+<section id="why-do-we-care" class="level1">
+<h1>Why do we care?</h1>
+<ul>
+<li>Transforms are isolated from sequential mechanism</li>
+<li>Transforms are more composable/reusable</li>
+<li>Single pass iteration boost performances</li>
+<li>Sequential iteration is someone else's responsibility</li>
+</ul>
+</section>
+<section id="always-possible" class="level1">
+<h1>Always possible?</h1>
+<ul>
+<li>Some transforms aren't immediate to translate:</li>
+</ul>
+<pre class="clojure"><code>(-&gt;&gt; [[0 1 2] [3 4 5] [6 7 8]] (apply map vector))</code></pre>
+<ul>
+<li>Scenarios involving infinite laziness:</li>
+</ul>
+<pre class="clojure"><code>(take 3 (sequence (mapcat repeat) [1])) ;; boom!</code></pre>
+<ul>
+<li>Realising intermediate results unnecessarily:</li>
+</ul>
+<pre class="clojure"><code>(first
+  (sequence
+    (comp (mapcat range) (mapcat range))
+  [3000 6000 9000])) ;; boom!</code></pre>
+</section>
+<section id="always-faster" class="level1">
+<h1>Always faster?</h1>
+<ul>
+<li>Avoid on small collections</li>
+<li>Avoid for just few transforms</li>
+<li>Avoid for trivial transforms</li>
+</ul>
+<p><strong>When in doubt, measure</strong></p>
+</section>
+<section id="main-api" class="level1">
+<h1>Main API</h1>
+<ul>
+<li><code>transduce</code>: eager, single pass. All input evaluated.</li>
+<li><code>sequence</code>: delayed, chunked (32), cached.</li>
+<li><code>eduction</code>: delayed, chunked (32) no caching.</li>
+<li><code>into</code>: eager. <code>transduce</code> &quot;into&quot; another data type.</li>
+</ul>
+</section>
+<section id="current-line-up" class="level1">
+<h1>Current line-up</h1>
+<pre><code>mapcat, remove, take, take-while, take-nth
+drop, drop-while, replace, partition-by, halt-when
+partition-all, keep, keep-indexed, map-indexed
+distinct, interpose, dedupe, random-sample, cat</code></pre>
+</section>
+<section id="resources" class="level1">
+<h1>Resources</h1>
+<ul>
+<li><a href="https://www.youtube.com/watch?v=6mTbuzafcII">Transducers presentation</a> by Rich</li>
+<li>Transducers official <a href="https://clojure.org/reference/transducers">reference guide</a></li>
+<li>Article about the Transducers <a href="https://labs.uswitch.com/transducers-from-the-ground-up-the-essence/">functional abstraction</a></li>
+</ul>
+</section>
+<section id="labs-intro" class="level1">
+<h1>Labs Intro</h1>
+<pre class="bash"><code>git clone https://github.com/uswitch/uswitch-academy.git
+cd clojure-transducers
+lein repl</code></pre>
+<p>It is assumed you can evaluate the code in the labs with your favourite IDE.</p>
+</section>
+<section id="driving-example" class="level1">
+<h1>Driving Example</h1>
+<ul>
+<li>App receiving regular updates of fin products</li>
+<li>Users can search for the best product.</li>
+<li>Each update contains +10k products as Clojure maps.</li>
+<li>We want to process the data in a modular/timely manner.</li>
+<li>Open <code>src/transducers_workshop/lab01.clj</code> to get started</li>
+</ul>
+</section>
+<section id="custom-xforms" class="level1">
+<h1>### 2. Custom Xforms</h1>
+<figure>
+<img src="images/01-fold-paper.png" />
+</figure>
+</section>
+<section id="fold" class="level1">
+<h1><code>fold</code></h1>
+<ul>
+<li>The idea: redefine sequential operations as folds</li>
+<li><code>fold</code> is a class of recursive-iterative algorithms</li>
+<li>Results are part of the args, no stack consumption</li>
+<li>Transform &quot;f&quot; also knows how to accumulate results</li>
+<li><code>reduce</code> is fold-left: &quot;folds&quot; items from left to right</li>
+<li>Effects: isolate transforms and accumulation details</li>
+</ul>
+</section>
+<section id="core-mapfilter" class="level1">
+<h1>core map/filter</h1>
+<pre class="clojure"><code>(defn map [f coll]
+  (lazy-seq
+    (when-let [s (seq coll)] ; terminating condition
+      (cons
+        (f (first s))        ; applying transform
+        (map f (rest s)))))) ; non tail-recursive
+
+(defn filter [pred coll]
+  (lazy-seq
+    (when-let [s (seq coll)]
+      (let [f (first s) r (rest s)]
+        (if (pred f)
+          (cons f (filter pred r))
+          (filter pred r))))))</code></pre>
+</section>
+<section id="fold-left-aka-reduce" class="level1">
+<h1>fold-left (<code>aka</code> reduce)</h1>
+<pre class="clojure"><code>(defn fold
+ ([f coll]                  ; arity to setup an &quot;init&quot;
+  (fold f [] coll))
+ ([f result coll] 
+  (if coll                   ; termination condition
+   (recur                   ; tail recursive
+    f                       ; &quot;f&quot; decides how to accumulate
+    (f result (first coll)) ; transform applied here
+    (next coll))            ; move on next element
+  result)))                 ; return results when no more items</code></pre>
+</section>
+<section id="moving-to-fold" class="level1">
+<h1>Moving to fold</h1>
+<ul>
+<li>Express <code>map</code>, <code>filter</code>, etc. as <code>fold</code></li>
+<li>We need to move from linear recursive to iterative.</li>
+<li>We need &quot;f&quot; to gradually build results.</li>
+<li>We need an &quot;init&quot; result to start from.</li>
+<li>It can't be lazy (there is no seq building)</li>
+</ul>
+</section>
+<section id="step-1-shape-up" class="level1">
+<h1>step 1: shape-up</h1>
+<pre class="clojure"><code>(defn map [f result coll]
+  (if coll
+    (map f (f result (first coll)) (next coll))
+    result))
+
+;; Example: (map inc (range 10))
+(map #(conj %1 (inc %2)) [] (range 10))
+
+(defn filter [f result coll]
+  (if coll
+    (filter f (f result (first coll)) (next coll))
+    result))
+
+;; Example: (filter odd? (range 10))
+(filter #(if (odd? %2) (conj %1 %2) %1) [] (range 10))</code></pre>
+</section>
+<section id="step-2-rename" class="level1">
+<h1>step 2: rename</h1>
+<p><code>map</code> and <code>filter</code> are the same! Rename to transform.</p>
+<pre class="clojure"><code>(defn transform [f result coll]
+  (if coll
+    (transform f (f result (first coll)) (next coll))
+    result))
+
+;; Example: (map inc (range 10))
+(transform #(conj %1 (inc %2)) [] (range 10))
+
+;; Example: (filter odd? (range 10))
+(transform #(if (odd? %2) (conj %1 %2) %1) [] (range 10))</code></pre>
+</section>
+<section id="step-3-transformreduce" class="level1">
+<h1>step 3: transform==reduce</h1>
+<p><code>transform</code> <strong>is</strong> <code>reduce</code>!</p>
+<pre class="clojure"><code>;; Example: (map inc (range 10))
+(reduce #(conj %1 (inc %2)) [] (range 10))
+
+;; Example: (filter odd? (range 10))
+(reduce #(if (odd? %2) (conj %1 %2) %1) [] (range 10))</code></pre>
+</section>
+<section id="step-4-anon-to-function" class="level1">
+<h1>step 4: anon to function</h1>
+<p>Let's extract those anons into fns.</p>
+<pre class="clojure"><code>(defn mapping [result el]
+  (conj result (inc el)))
+
+;; Example: (map inc (range 10))
+(reduce mapping [] (range 10))
+
+(defn filtering [result el]
+  (if (odd? el)
+    (conj result el)
+    result))
+
+;; Example: (filter odd? (range 10))
+(reduce filtering [] (range 10))</code></pre>
+</section>
+<section id="step-5-extract-accumulation" class="level1">
+<h1>step 5: Extract accumulation</h1>
+<p><code>conj</code> is specific accumulation logic. Extract param.</p>
+<pre class="clojure"><code>(defn mapping [rf]
+  (fn [result el]
+    (rf result (inc el))))
+
+;; Example: (map inc (range 10))
+(reduce (mapping conj) [] (range 10))
+
+(defn filtering [rf]
+  (fn [result el]
+    (if (odd? el)
+      (rf result el)
+      result)))
+
+;; Example: (filter odd? (range 10))
+(reduce (filtering conj) [] (range 10))</code></pre>
+</section>
+<section id="step-6-extract-transform" class="level1">
+<h1>step 6: Extract transform</h1>
+<p><code>inc</code> and <code>odd?</code> are specific transform logic. Extract param.</p>
+<pre class="clojure"><code>(defn mapping [f]
+  (fn [rf]
+    (fn [result el]
+      (rf result (f el)))))
+
+;; Example: (map inc (range 10))
+(reduce ((mapping inc) conj) [] (range 10))
+
+(defn filtering [pred]
+  (fn [rf]
+    (fn [result el]
+      (if (pred el) (rf result el) result))))
+
+;; Example: (filter odd? (range 10))
+(reduce ((filtering odd?) conj) [] (range 10))</code></pre>
+</section>
+<section id="step-7-encapsulate-call" class="level1">
+<h1>step 7: encapsulate call</h1>
+<p><code>mapping</code> and <code>filtering</code> need preparation for use. Extract that complexity away in new function <code>wrapper</code> &quot;init&quot; can be obtained from <code>(rf)</code></p>
+<pre class="clojure"><code>(defn wrapper [xf rf coll]
+  (reduce (xf rf) (rf) coll))
+
+;; Example: (map inc (range 10))
+(wrapper (mapping inc) conj (range 10))
+
+;; Example: (filter odd? (range 10))
+(wrapper (filtering odd?) conj (range 10))</code></pre>
+</section>
+<section id="step-8-final-touches" class="level1">
+<h1>step 8: final touches</h1>
+<ul>
+<li>We reached our desired form.</li>
+<li>Can you guess how &quot;wrapper&quot; was officially named?</li>
+<li>And what about &quot;mapping&quot; or &quot;filtering&quot;?</li>
+<li>What mapping/filtering have in common?</li>
+</ul>
+</section>
+<section id="additional-details" class="level1">
+<h1>Additional details</h1>
+<ul>
+<li><code>mapping</code>/<code>filtering</code> are very similar to map/filter</li>
+<li>Same for <code>wrapper</code> which was named <code>transduce</code></li>
+<li>The stdlib also implements setup/tear-down behaviors</li>
+<li>This is why <code>map</code> and <code>filter</code> xform have more arities</li>
+<li>A &quot;good transducer&quot; also need to behave correctly</li>
+</ul>
+</section>
+<section id="designing-a-transducer" class="level1">
+<h1>Designing a transducer</h1>
+<ul>
+<li>Deal with the end of the reduction in 1-arg arity</li>
+<li>Provide an initial value in 0-arg arity (currently unused)</li>
+<li>Where to initialize state (for stateful xforms)</li>
+<li>How to terminate early (if needed)</li>
+<li>Surrounding xforms awareness (mandatory calls)</li>
+</ul>
+</section>
+<section id="resources-1" class="level1">
+<h1>Resources</h1>
+<ul>
+<li>A tutorial on the <a href="www.cs.nott.ac.uk/~pszgmh/fold.pdf">universality and expressiveness of fold</a></li>
+<li>uSwitch Labs <a href="https://labs.uswitch.com/transducers-from-the-ground-up-the-essence/">transducers articles</a></li>
+</ul>
+</section>
+<section id="lab-02" class="level1">
+<h1>Lab 02</h1>
+<ul>
+<li>Task 1: create a &quot;logging&quot; transducer to print useful info.</li>
+<li>Task 2: create a stateful moving average transducer</li>
+<li>Open <code>src/transducers_workshop/lab02.clj</code> to get started</li>
+</ul>
+</section>
+<section id="xf-core.async" class="level1">
+<h1>### 3. Xf core.async</h1>
+</section>
+<section id="where-it-all-started" class="level1">
+<h1>Where it all started</h1>
+<ul>
+<li>core.async was shaping up back in 2012-2013</li>
+<li>Having <code>(map f in out)</code> was desirable feat.</li>
+<li>But a channel is not a sequence</li>
+<li>Don't want to reimplement it all over:</li>
+</ul>
+<pre class="clojure"><code>(defn map [f in out]
+ (go-loop []
+  (let [val (&lt;! in)]
+   (if (nil? val)
+    (close! out)
+    (do (doseq [v (f val)] (&gt;! out v))
+        (when-not (impl/closed? out)
+         (recur)))))))</code></pre>
+</section>
+<section id="reuse-the-same-xforms" class="level1">
+<h1>Reuse the same xforms</h1>
+<ul>
+<li>No need to reimplement all over.</li>
+<li>Reuse the same xforms! 3 options:</li>
+<li><code>a/channel</code></li>
+<li><code>a/transduce</code></li>
+<li><code>a/pipeline</code></li>
+</ul>
+</section>
+<section id="achannel" class="level1">
+<h1><code>a/channel</code></h1>
+<pre class="clojure"><code>(defn consumer [xf]
+  (let [in (a/chan (a/sliding-buffer 64) xf)]
+    (a/go-loop [x (a/&lt;! in)]
+      (when x
+        (println &quot;consumer received data&quot; x)
+        (recur (a/&lt;! in)))) in))
+
+(defn producer [xs &amp; chs]
+  (a/go (doseq [x xs ch chs]
+      (a/&lt;! (a/timeout 1000))
+      (a/&gt;! ch x))))</code></pre>
+<pre class="clojure"><code>(producer
+  &quot;hello&quot;
+  (consumer (map (comp keyword str)))
+  (consumer (map int)))
+
+;; consumer received data 104
+;; consumer received data :e
+…</code></pre>
+</section>
+<section id="atransduce" class="level1">
+<h1>a/transduce</h1>
+<ul>
+<li>Accepts a channel as input</li>
+<li>Returns a channel with the reduction results</li>
+</ul>
+<pre class="clojure"><code>(a/&lt;!!
+  (a/transduce
+    (comp (map inc) (filter odd?))
+    + 0
+    (a/to-chan (range 10))))
+;; 25</code></pre>
+</section>
+<section id="apipeline" class="level1">
+<h1>a/pipeline</h1>
+<pre class="clojure"><code>(let [out (a/chan (a/buffer 100))]
+  (a/pipeline 4 out
+    (comp (map inc))
+    (a/to-chan (range 10)))
+  (a/&lt;!! (a/into [] out)))
+;; [1 2 3 4 5 6 7 8 9 10]</code></pre>
+</section>
+<section id="resources-2" class="level1">
+<h1>Resources</h1>
+<ul>
+<li>Communicating Sequential Processes (CSP) <a href="www.usingcsp.com/cspbook.pdf">paper</a></li>
+<li>Core.async <a href="https://github.com/clojure/core.async/blob/master/examples/walkthrough.clj">walk-through</a></li>
+<li><a href="https://www.braveclojure.com/core-async/">Brave Clojure guide</a></li>
+</ul>
+</section>
+<section id="lab-03" class="level1">
+<h1>Lab 03</h1>
+<ul>
+<li>Task 1: create channels and orchestrate them so incoming products end up in a local cache.</li>
+<li>Task 2: use the &quot;prepare-data&quot; transducer from <code>lab01</code> to transform incoming products.</li>
+</ul>
+</section>
+<section id="going-parallel" class="level1">
+<h1>### 4. Going parallel</h1>
+</section>
+<section id="parallelism" class="level1">
+<h1>Parallelism</h1>
+<ul>
+<li>Present in Clojure in different forms:</li>
+<li><code>pmap</code> (lazy, sequential, constrained)</li>
+<li><code>r/fold</code> (work-stealing, fork-join)</li>
+<li>Custom (<code>future</code>, <code>agent</code>, etc.)</li>
+</ul>
+</section>
+<section id="parallel-transducers" class="level1">
+<h1>Parallel transducers</h1>
+<ul>
+<li>Transducers could run in parallel for additional perf.</li>
+<li>Approach 1. Divide and conquer: split the input and work in parallel</li>
+<li>Approach 2. <code>core.async</code> pipelines</li>
+</ul>
+</section>
+<section id="rfold" class="level1">
+<h1>r/fold</h1>
+<ul>
+<li><code>clojure.core.reducers</code> is part of Clojure</li>
+<li>fork-join is a divide and conquer strategy with work-stealing</li>
+<li>The input can be split into chunks (so no laziness)</li>
+<li>Combining the chunks back must be commutative</li>
+</ul>
+</section>
+<section id="section" class="level1">
+<h1></h1>
+<figure>
+<img src="images/fork-join.png" />
+</figure>
+</section>
+<section id="how" class="level1">
+<h1>How</h1>
+<ul>
+<li>Transducers are f: rf -&gt; rf</li>
+<li>Call with &quot;+&quot; to obtain the transformed rf</li>
+<li>Use transformed rf in <code>r/fold</code> as usual</li>
+<li>To go parallel, you need vector/map</li>
+<li>Or possibly your custom <code>IFold</code></li>
+<li>Works only with stateless transducers</li>
+</ul>
+</section>
+<section id="example" class="level1">
+<h1>Example</h1>
+<pre class="clojure"><code>(require &#39;[clojure.core.reducers :as r])
+
+(r/fold +
+  ((comp
+    (map inc) (filter odd?)) +)
+  (vec (range 1000)))
+;; 250000</code></pre>
+</section>
+<section id="stateful-problem" class="level1">
+<h1>Stateful problem</h1>
+<pre class="clojure"><code>(distinct (for [i (range 1000)]
+  (r/fold +
+    ((comp
+      (map inc) (drop 1) (filter odd?)) +)
+    (vec (range 1000)))))
+;; (249999 249498 249499)</code></pre>
+<ul>
+<li>Results are inconsistent</li>
+<li>Depending on which thread runs <code>(drop 1)</code></li>
+<li>You get different results each run</li>
+</ul>
+</section>
+<section id="pipelines" class="level1">
+<h1>Pipelines</h1>
+<ul>
+<li><code>core.async</code> provides a <code>pipeline</code> construct</li>
+<li><code>pipeline</code> can be further &quot;piped&quot; together</li>
+<li>Each <code>pipeline</code> declares the parallelism degree</li>
+<li>Each <code>pipeline</code> can apply a different transducer</li>
+</ul>
+</section>
+<section id="example-1" class="level1">
+<h1>Example</h1>
+<pre class="clojure"><code>(a/pipeline
+   (inc (.availableProcessors (Runtime/getRuntime)))
+   (a/chan out)
+   (comp (map inc) (filter odd?))
+   (a/to-chan (range 1000)))</code></pre>
+<ul>
+<li>&quot;availableProcessor&quot; is the number of parallel threads</li>
+<li>Adding 1 or 2 threads to keep it buys</li>
+<li>Use in/out channels to pipe more of them together</li>
+</ul>
+</section>
+<section id="resources-3" class="level1">
+<h1>Resources</h1>
+<ul>
+<li>The <a href="https://github.com/reborg/parallel#pfold-pxrf-and-pfolder">parallel</a> library enables consistent stateful xforms in parallel.</li>
+<li><a href="gee.cs.oswego.edu/dl/papers/fj.pdf">A Java fork-join framework</a> paper by Doug Lea</li>
+<li><a href="https://pragprog.com/book/vmclojeco/clojure-applied">Clojure Applied</a> book contains chapters dedicated to Transducers with core.async pipelines examples.</li>
+<li><a href="https://livebook.manning.com/#!/book/clojure-standard-library/chapter-7">Standard Library book</a>, Chapter 7 Reducers and Transducers</li>
+</ul>
+</section>
+<section id="lab-04" class="level1">
+<h1>Lab 04</h1>
+<ul>
+<li>Task1: parallelise the xform with reducers.</li>
+<li>Task2: parallelise the xform with pipelines.</li>
+<li>Task3: different pipelines for different transducers.</li>
+</ul>
+</section>
+</div>
+
+<script src="reveal.js/lib/js/head.min.js"></script>
+<script src="reveal.js/js/reveal.js"></script>
+
+<script>
+  // Full list of configuration options available here:
+  // https://github.com/hakimel/reveal.js#configuration
+  Reveal.initialize({
+    controls: true,
+    progress: true,
+    history: true,
+    center: false,
+
+  // available themes are in /css/theme
+      theme: Reveal.getQueryHash().theme || 'beige',
+  
+  // default/cube/page/concave/zoom/linear/fade/none
+      transition: Reveal.getQueryHash().transition || 'linear',
+  
+    dependencies: [
+      { src: 'reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+      { src: 'reveal.js/plugin/markdown/showdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+      { src: 'reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+      { src: 'reveal.js/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+      { src: 'reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+      { src: 'reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } },
+      { src: 'reveal.js/plugin/toc-progress/toc-progress.js', async: true, callback: function() { toc_progress.initialize(); toc_progress.create(); } }
+      // { src: 'reveal.js/plugin/remotes/remotes.js', async: true, condition: function() { return !!document.body.classList; } }
+    ]
+  });
+
+</script>
+
+</body>
+</html>

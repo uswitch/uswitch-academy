@@ -8,24 +8,25 @@
 ; The logging transducer can be placed anywhere in the transducer chain.
 ; When enabled (for example with a parameter), it prints the
 ; value of the current step of the computation to standard output.
-; Here's the prototypical transducer triple-arity function. There are 3 "nils"
-; that you are requested to change into something else.
+; Here's the prototypical transducer triple-arity function.
+
 ; zero-arity: called at reduction initialization. It needs to (at least)
-;             propagate the call to other transducers in the chain (and ultimately
+;             propagate the call to other transducers down the chain (and ultimately
 ;             the reduce call that seats at the bottom of the chain).
 ;             "rf" (the transforming reducing function) represents your "view"
-;             of the rest of the transducer chain). "(rf)" was called before
-;             the "log" transducer to enter the zero-arity call. Do the same for your
-;             transducer to initialize the transducer that follows.
+;             of the rest of the transducer chain). "(rf)" will propagate the call.
 ; one-arity:  Called at reduction termination. Tear-down any state here.
-;             Should always propagate down to other transducers and reduce call.
+;             Should always propagate down to other transducers.
 ;             Again, "rf" is the view of the transducers (or reduce) coming after you.
+;             (rf results) will propagate this call downstream.
 ; two-arity:  This is the reducing step of the reduction. Your are given the results so far
 ;             as "result" and the next item in the input as "input". This is a logging transducer,
 ;             so you are expected to print the results so far and the current element.
 ;             Remember to use "rf" to propagate the same call down the transducer after you.
+
 ; The enabled parameter is a boolean that you can use in a condition to enable or disable printing
 ; to the standard output. Please make sure to print only when "enabled" is "true".
+; There are 3 "nils" that you are requested to change into something useful
 
 (defn log
   [enabled]
@@ -67,17 +68,20 @@
 ;
 ; (/ (+ 0 1 2 5) 4) ;= 2
 ;
-; as the new average. Given a collection of numbers, we want to calculate all the average values
+; Given a collection of numbers, we want to calculate all the average values
 ; as we fetch the next element from the sequence. In order to do that, we need to
 ; keep at least 2 numbers around: the sum of the elements seen so far and their count.
 ; This is the only way to calculate a new average given the next element.
 ; In other words, the transducer needs to remember something about the past,
 ; so we need to keep some for of state available for the reducing function.
+
 ; A typical pattern is to use a "volatile!" variable, a recently introduced mutable value
 ; which is ideal in situation where you need to "close over" with your function. An "atom"
 ; would be also possible although it would be unnecessarily heavy (with its compare and swap
-; semantic) for the use case we have.
-; Try to complete the skeleton below where the string "complete here" is.
+; semantic) for the use case we have. Moreover, an atom would not work if the same xform
+; is used in a `core.async` pipeline. More on that in the next unit.
+
+; Try to complete the skeleton below replacing the string "complete here".
 ; Also check for the example outputs:
 
 (defn moving-average
@@ -98,7 +102,7 @@
 ;; (1 3/2 2 5/2 3 7/2 4 9/2 5 11/2)
 
 ; The following adds a little more complexity and size to the problem
-; by using mapcat to generate much more input.
+; by using mapcat to generate more numbers:
 (def avgs
   (sequence
     (comp (map dec)

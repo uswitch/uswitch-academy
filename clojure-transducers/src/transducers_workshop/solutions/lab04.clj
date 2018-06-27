@@ -16,7 +16,7 @@
 
 (defn parallel-reducers [params feed]
   (r/fold
-    (r/monoid into (constantly []))
+    into
     ((lab01/xform params) conj)
     feed))
 
@@ -27,6 +27,7 @@
     (load-data 1000)))
 
 ; (time (def cs (call-parallel-reducers)))
+; (println (with-out-str (clojure.pprint/write (first cs))))
 
 (def max-parallel
   (inc (.availableProcessors (Runtime/getRuntime))))
@@ -46,7 +47,9 @@
      :loan-amount 1500000}
     (load-data 1000)))
 
-; (time (def cs (call-parallel-async)))
+; (time (def cs2 (call-parallel-async)))
+; (require '[clojure.data :refer [diff]])
+; (println (with-out-str (clojure.pprint/write (diff (first cs) (first cs2)))))
 
 (defn parallel-async-multiple [params feed]
   (let [io (async/chan (async/buffer 100))
@@ -69,4 +72,4 @@
      :loan-amount 1500000}
     (load-data 1000)))
 
-; (time (def cs (call-parallel-async-multiple)))
+; (time (def cs3 (call-parallel-async-multiple)))
