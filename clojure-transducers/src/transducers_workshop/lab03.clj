@@ -60,9 +60,9 @@
 ; ######### Task 2: stream some products into the input channel.
 ; The consumer will start consuming from the "future" thread.
 
-(to-stream
-  ; complete here
-  )
+; (to-stream
+;   ; complete here
+;   )
 
 ; ########## Task 3: check that something ended up in the cache.
 
@@ -86,9 +86,9 @@
 ; start the consumer in a future as we did before.
 
 ; stream a few products in:
-(to-stream
-  ; complete here
-  )
+; (to-stream
+;   ; complete here
+;   )
 
 ; check the content of the cache again Are the product different?
 ; remember to close the channels.
