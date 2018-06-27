@@ -1,5 +1,5 @@
 ---
-author: 1 day, 5 units and related labs
+author: 1 day, 4 units and related labs
 title: Clojure Transducers Workshop
 date: https://github.com/uswitch/uswitch-academy/tree/master/clojure-transducers
 ---
