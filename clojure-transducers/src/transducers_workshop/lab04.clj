@@ -6,10 +6,12 @@
     [clojure.core.async :as async]))
 
 ; LAB 04: Paralellizing Transducers.
+
 ; There are essentially two approaches: one is using Reducers (fork-join framework)
 ; and apply transducers when the smallest chunk is reached.
 ; The other is using core.async pipeline, another form of multi-threading
 ; where each item is sent down one of many parallel channels available and gets transformed.
+; load-data just prepare data as a vector to use with reducers.
 
 (defn load-data
   "load the usual test data but repeat them to create a much
@@ -17,7 +19,8 @@
   [n]
   (into [] (apply concat (repeat n (lab01/load-data)))))
 
-; STEP 1: parallelise with reducers.
+; ########### TASK 1: parallelise with reducers.
+
 ; The entry pointis the r/fold function. It requires a combine function and reducing function.
 ; A transducer chain is just a function of one argument waiting for a
 ; reducing function (such as + or conj). If we call the transducer chain with that function,
@@ -46,7 +49,8 @@
 
 ; (time (def cs (lab04/call-parallel-reducers)))
 
-;; STEP 2: complete the following core.async pipeline to process the feed in parallel.
+;; ########### TASK 2:
+;; complete the following core.async pipeline to process the feed in parallel.
 
 (def max-parallel
   (inc (.availableProcessors (Runtime/getRuntime))))
@@ -69,7 +73,8 @@
 
 ; (time (def cs (lab04/call-parallel-async)))
 
-; STEP 3: core.async pipelines can be independently configured and attached together.
+; ############ TASK 3: core.async pipelines
+; piplines can be independently configured and attached together.
 ; We are going to give additional parallelism to the "prepare" step
 ; and attach it to the "filter" step in another pipeline.
 
@@ -98,11 +103,12 @@
 
 ; (time (def cs (lab04/call-parallel-async-multiple)))
 
-;; STEP 4: uncomment now the time benchmarks to test how fast they are.
+;; ######### Bonus Task 4:
+; uncomment now the time benchmarks to test how fast they are.
 ; Which one is the fastest?
 ; Bonus: would you be able to rewrite the transducer chain as standard sequential processing?
 ; How long does it take to process the same list of products?
 
 ; Rewrite the transducers as plain sequential processing and benchmark the time
 ; it needs to process the same amount of data. How it compare with transducers?
-; Hint: it should be much faster.
+; Hint: transducers are much faster.

@@ -490,6 +490,115 @@ lein repl</code></pre>
 <li>Task 2: use the &quot;prepare-data&quot; transducer from <code>lab01</code> to transform incoming products.</li>
 </ul>
 </section>
+<section id="going-parallel" class="level1">
+<h1>### 4. Going parallel</h1>
+</section>
+<section id="parallelism" class="level1">
+<h1>Parallelism</h1>
+<ul>
+<li>Present in Clojure in different forms:</li>
+<li><code>pmap</code> (lazy, sequential, constrained)</li>
+<li><code>r/fold</code> (work-stealing, fork-join)</li>
+<li>Custom (<code>future</code>, <code>agent</code>, etc.)</li>
+</ul>
+</section>
+<section id="parallel-transducers" class="level1">
+<h1>Parallel transducers</h1>
+<ul>
+<li>Transducers could run in parallel for additional perf.</li>
+<li>Approach 1. Divide and conquer: split the input and work in parallel</li>
+<li>Approach 2. <code>core.async</code> pipelines</li>
+</ul>
+</section>
+<section id="rfold" class="level1">
+<h1>r/fold</h1>
+<ul>
+<li><code>clojure.core.reducers</code> is part of Clojure</li>
+<li>fork-join is a divide and conquer strategy with work-stealing</li>
+<li>The input can be split into chunks (so no laziness)</li>
+<li>Combining the chunks back must be commutative</li>
+</ul>
+</section>
+<section id="section" class="level1">
+<h1></h1>
+<figure>
+<img src="images/fork-join.png" />
+</figure>
+</section>
+<section id="how" class="level1">
+<h1>How</h1>
+<ul>
+<li>Transducers are f: rf -&gt; rf</li>
+<li>Call with &quot;+&quot; to obtain the transformed rf</li>
+<li>Use transformed rf in <code>r/fold</code> as usual</li>
+<li>To go parallel, you need vector/map</li>
+<li>Or possibly your custom <code>IFold</code></li>
+<li>Works only with stateless transducers</li>
+</ul>
+</section>
+<section id="example" class="level1">
+<h1>Example</h1>
+<pre class="clojure"><code>(require &#39;[clojure.core.reducers :as r])
+
+(r/fold +
+  ((comp
+    (map inc) (filter odd?)) +)
+  (vec (range 1000)))
+;; 250000</code></pre>
+</section>
+<section id="stateful-problem" class="level1">
+<h1>Stateful problem</h1>
+<pre class="clojure"><code>(distinct (for [i (range 1000)]
+  (r/fold +
+    ((comp
+      (map inc) (drop 1) (filter odd?)) +)
+    (vec (range 1000)))))
+;; (249999 249498 249499)</code></pre>
+<ul>
+<li>Results are inconsistent</li>
+<li>Depending on which thread runs <code>(drop 1)</code></li>
+<li>You get different results each run</li>
+</ul>
+</section>
+<section id="pipelines" class="level1">
+<h1>Pipelines</h1>
+<ul>
+<li><code>core.async</code> provides a <code>pipeline</code> construct</li>
+<li><code>pipeline</code> can be further &quot;piped&quot; together</li>
+<li>Each <code>pipeline</code> declares the parallelism degree</li>
+<li>Each <code>pipeline</code> can apply a different transducer</li>
+</ul>
+</section>
+<section id="example-1" class="level1">
+<h1>Example</h1>
+<pre class="clojure"><code>(a/pipeline
+   (inc (.availableProcessors (Runtime/getRuntime)))
+   (a/chan out)
+   (comp (map inc) (filter odd?))
+   (a/to-chan (range 1000)))</code></pre>
+<ul>
+<li>&quot;availableProcessor&quot; is the number of parallel threads</li>
+<li>Adding 1 or 2 threads to keep it buys</li>
+<li>Use in/out channels to pipe more of them together</li>
+</ul>
+</section>
+<section id="resources-3" class="level1">
+<h1>Resources</h1>
+<ul>
+<li>The <a href="https://github.com/reborg/parallel#pfold-pxrf-and-pfolder">parallel</a> library enables consistent stateful xforms in parallel.</li>
+<li><a href="gee.cs.oswego.edu/dl/papers/fj.pdf">A Java fork-join framework</a> paper by Doug Lea</li>
+<li><a href="https://pragprog.com/book/vmclojeco/clojure-applied">Clojure Applied</a> book contains chapters dedicated to Transducers with core.async pipelines examples.</li>
+<li><a href="https://livebook.manning.com/#!/book/clojure-standard-library/chapter-7">Standard Library book</a>, Chapter 7 Reducers and Transducers</li>
+</ul>
+</section>
+<section id="lab-04" class="level1">
+<h1>Lab 04</h1>
+<ul>
+<li>Task1: parallelise the xform with reducers.</li>
+<li>Task2: parallelise the xform with pipelines.</li>
+<li>Task3: different pipelines for different transducers.</li>
+</ul>
+</section>
 </div>
 
 <script src="reveal.js/lib/js/head.min.js"></script>
